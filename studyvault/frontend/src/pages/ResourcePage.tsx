@@ -160,6 +160,7 @@ function ResourceView({ resource: r }: { resource: Resource }) {
               <Meta icon={Calendar} label="Year" value={r.year} />
               {r.exam_type_label && <Meta icon={Calendar} label="Exam" value={r.exam_type_label} />}
               <Meta
+                wide
                 icon={Layers}
                 label="File"
                 value={[r.file_ext.toUpperCase(), r.page_count && FILE_KIND_META[r.file_type].unit ? `${r.page_count} ${FILE_KIND_META[r.file_type].unit}` : null, formatBytes(r.file_size)].filter(Boolean).join(' · ')}

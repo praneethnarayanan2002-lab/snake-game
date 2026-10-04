@@ -1,10 +1,10 @@
 # StudyVault
 
-A community-driven academic PDF library for college students. Upload notes and papers once; everyone can find them, organised **Subject → Unit → Resource type → Year** and ranked by relevance and community signals.
+A community-driven academic document library for college students. Upload notes and papers once — PDF, Word, PowerPoint, Excel, OpenDocument, text/Markdown/CSV, RTF or images; everyone can find them, organised **Subject → Unit → Resource type → Year** and ranked by relevance and community signals.
 
 - **Frontend:** React 19 · Vite · Tailwind CSS v4 · framer-motion · cmdk · Radix UI · react-pdf
 - **Backend:** FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL 16 (full-text search + pg_trgm) · pypdf
-- **Storage:** pluggable file storage (local disk now; S3/Supabase/Cloudinary by adding a backend). PDF binaries never go into Postgres.
+- **Storage:** pluggable file storage (local disk now; S3/Supabase/Cloudinary by adding a backend). File binaries never go into Postgres.
 
 **Live:** https://studyvault-smoky.vercel.app (Vercel + Supabase)
 
@@ -114,6 +114,9 @@ studyvault/
 
 ### Storage
 `app/services/storage.py` defines a `StorageBackend` interface (`save`, `delete`, `exists`, `local_path`, `public_url`). `LocalDiskStorage` writes to `backend/storage/YYYY/MM/<uuid>.pdf`. Postgres stores only `file_key`; `file_url` is derived (`/api/resources/{id}/file`) so swapping backends doesn't touch rows. A remote backend returns a `public_url` and the file endpoint redirects to it.
+
+### Supported formats
+`app/services/documents.py` keeps an allowlist: PDF, DOCX/DOC, ODT, RTF, PPTX/PPT, ODP, XLSX/XLS, ODS, CSV, TXT, MD, PNG/JPG/WebP/GIF (20 MB max). Each upload is checked by file signature (a renamed file is rejected), and HTML/SVG/executables are refused because files are served publicly. Text is extracted with pypdf, python-docx, python-pptx, openpyxl, odfpy and striprtf; legacy binary Office files and images are stored without text. In the app, PDFs open in the pdf.js reader, images in a zoomable viewer, text/Markdown/CSV inline, and Office/OpenDocument files in Microsoft's online viewer when served from public storage (deployed site), with an extracted-text tab everywhere.
 
 ### Text extraction & search
 On upload, `pypdf` extracts text (capped at 400k chars) into `resource_texts` with a generated `tsvector` column (GIN-indexed). Resources also have a generated, weighted `search_vector` over title (A), tags (B) and description (C), plus a trigram index on title for fuzzy matches.

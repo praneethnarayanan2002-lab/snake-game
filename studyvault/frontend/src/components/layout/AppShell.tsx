@@ -196,7 +196,7 @@ function Sidebar() {
       </nav>
       <div className="space-y-2 border-t border-border p-3">
         <Link to="/upload" className={cn(buttonVariants({ variant: 'primary', size: 'md' }), 'w-full')}>
-          <Upload /> Upload PDF
+          <Upload /> Upload
         </Link>
         {user ? (
           <UserMenu />
@@ -253,7 +253,7 @@ function MobileBottomNav() {
         {items.slice(0, 2).map((i) => (
           <BottomItem key={i.to} {...i} />
         ))}
-        <NavLink to="/upload" className="grid place-items-center" aria-label="Upload PDF">
+        <NavLink to="/upload" className="grid place-items-center" aria-label="Upload">
           <motion.span whileTap={{ scale: 0.92 }} className="grid size-11 place-items-center rounded-xl bg-accent text-accent-fg shadow-[0_6px_20px_-6px_var(--accent-ring)]">
             <Upload className="size-5" />
           </motion.span>

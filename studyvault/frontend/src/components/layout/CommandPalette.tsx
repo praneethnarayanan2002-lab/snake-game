@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PdfGlyph } from '@/components/resource/ResourceCard'
+import { FileGlyph } from '@/components/resource/ResourceCard'
 import { Dialog } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/primitives'
 import { clearRecentSearches, getRecentSearches, pushRecentSearch, useDebounced, useSubjects } from '@/hooks/useData'
@@ -228,7 +228,7 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
           <Command.Group heading={`Top results · ${data.total}`}>
             {data.items.map((r) => (
               <Item key={r.id} value={`res-${r.id}`} onSelect={() => go(`/resources/${r.id}`, q)}>
-                <PdfGlyph type={r.resource_type} className="size-8 rounded-md [&>span]:hidden" />
+                <FileGlyph type={r.resource_type} ext={r.file_ext} className="size-8 rounded-md [&>span]:hidden" />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate font-medium">{r.title}</span>
@@ -304,7 +304,7 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
             <Command.Group heading="Jump to">
               {[
                 { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
-                { label: 'Upload a PDF', icon: Upload, to: '/upload' },
+                { label: 'Upload a document', icon: Upload, to: '/upload' },
                 { label: 'Exam mode', icon: Target, to: '/exam' },
                 { label: 'Bookmarks', icon: Bookmark, to: '/bookmarks' },
                 { label: 'All subjects', icon: BookOpen, to: '/subjects' },

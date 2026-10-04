@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
+from app.services.documents import FORMATS
 from app.services.storage import get_storage
 from app.constants import EXAM_TYPES, REPORT_REASONS, RESOURCE_TYPES
 from app.models import Resource, Subject
@@ -63,6 +64,7 @@ def meta():
         "exam_types": EXAM_TYPES,
         "report_reasons": REPORT_REASONS,
         "direct_upload": get_storage().supports_direct_upload,
+        "formats": {ext: {"kind": f.kind, "label": f.label, "mime": f.mime} for ext, f in FORMATS.items()},
         "max_upload_mb": get_settings().max_upload_mb,
     }
 

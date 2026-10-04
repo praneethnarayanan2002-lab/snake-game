@@ -140,6 +140,7 @@ export const api = {
     request<ExamPlan>(`/api/exam-plan${qs({ subject, exam, focus_unit })}`),
 
   resource: (id: number) => request<Resource>(`/api/resources/${id}`),
+  documentText: (id: number) => request<{ text: string; truncated: boolean }>(`/api/resources/${id}/text`),
   recordView: (id: number) => request<Stats>(`/api/resources/${id}/view`, { method: 'POST' }),
   saveProgress: (id: number, page: number) =>
     request<void>(`/api/resources/${id}/progress`, { method: 'PUT', body: json({ page }) }),
@@ -156,7 +157,7 @@ export const api = {
 
   /**
    * Upload with progress via XHR (fetch has no upload progress events). When storage
-   * supports it, the PDF goes straight to object storage through a signed URL and the
+   * supports it, the file goes straight to object storage through a signed URL and the
    * API only receives metadata — serverless hosts cap request bodies at a few MB.
    */
   upload: async (input: UploadInput, onProgress: (pct: number) => void): Promise<Resource> => {
@@ -169,11 +170,11 @@ export const api = {
     const form = new FormData()
     Object.entries(fields).forEach(([k, v]) => form.append(k, v))
     if (direct_upload) {
-      const { key, upload_url } = await request<{ key: string; upload_url: string }>('/api/resources/upload-url', {
+      const { key, upload_url, content_type } = await request<{ key: string; upload_url: string; content_type: string }>('/api/resources/upload-url', {
         method: 'POST',
         body: json({ filename: file.name, size: file.size }),
       })
-      await sendXhr('PUT', upload_url, file, onProgress, { 'Content-Type': 'application/pdf', 'x-upsert': 'false' }, false)
+      await sendXhr('PUT', upload_url, file, onProgress, { 'Content-Type': content_type, 'x-upsert': 'false' }, false)
       form.append('file_key', key)
       form.append('file_name', file.name)
       return sendXhr('POST', `${API_BASE}/api/resources`, form, () => {}) as Promise<Resource>

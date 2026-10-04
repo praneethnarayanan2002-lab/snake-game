@@ -11,12 +11,14 @@ import { Button } from '@/components/ui/button'
 import { AnimatedNumber, Spinner } from '@/components/ui/feedback'
 import { Badge, Card, Skeleton } from '@/components/ui/primitives'
 import { useResourceActions } from '@/hooks/useResourceActions'
+import { FILE_KIND_META } from '@/lib/constants'
 import { useAuth } from '@/lib/auth'
 import type { Resource } from '@/lib/types'
 import { cn, formatBytes, timeAgo } from '@/lib/utils'
 import { api, fileUrl } from '@/services/api'
 import NotFoundPage from './NotFoundPage'
 
+const DocumentViewer = lazy(() => import('@/components/resource/DocumentViewer').then((m) => ({ default: m.DocumentViewer })))
 const PdfViewer = lazy(() => import('@/components/resource/PdfViewer').then((m) => ({ default: m.PdfViewer })))
 
 export default function ResourcePage() {
@@ -120,7 +122,11 @@ function ResourceView({ resource: r }: { resource: Resource }) {
 
         <div className="h-[78dvh] min-h-0 p-2 sm:p-4 lg:h-auto lg:flex-1">
           <Suspense fallback={<div className="grid h-full place-items-center rounded-xl border border-border bg-surface-2"><Spinner /></div>}>
-            <PdfViewer url={fileUrl(r)} downloadUrl={fileUrl(r, true)} initialPage={Number(params.get('page')) || 1} onPageChange={onPageChange} />
+            {r.file_type === 'pdf' ? (
+              <PdfViewer url={fileUrl(r)} downloadUrl={fileUrl(r, true)} initialPage={Number(params.get('page')) || 1} onPageChange={onPageChange} />
+            ) : (
+              <DocumentViewer resource={r} url={fileUrl(r)} downloadUrl={fileUrl(r, true)} />
+            )}
           </Suspense>
         </div>
 
@@ -153,7 +159,11 @@ function ResourceView({ resource: r }: { resource: Resource }) {
               <Meta icon={Tag} label="Type" value={r.resource_type_label} />
               <Meta icon={Calendar} label="Year" value={r.year} />
               {r.exam_type_label && <Meta icon={Calendar} label="Exam" value={r.exam_type_label} />}
-              <Meta icon={Layers} label="File" value={`${r.page_count} pages · ${formatBytes(r.file_size)}`} />
+              <Meta
+                icon={Layers}
+                label="File"
+                value={[r.file_ext.toUpperCase(), r.page_count && FILE_KIND_META[r.file_type].unit ? `${r.page_count} ${FILE_KIND_META[r.file_type].unit}` : null, formatBytes(r.file_size)].filter(Boolean).join(' · ')}
+              />
             </dl>
             {(r.description || r.tags.length > 0) && (
               <div className="space-y-3 p-4">
@@ -221,7 +231,7 @@ function ResourceView({ resource: r }: { resource: Resource }) {
             open={deleteOpen}
             onOpenChange={setDeleteOpen}
             title="Delete this resource?"
-            description="The PDF and its stars, ratings and bookmarks will be permanently removed."
+            description="The file and its stars, ratings and bookmarks will be permanently removed."
             onConfirm={async () => {
               await api.deleteResource(r.id)
               toast.success('Resource deleted')

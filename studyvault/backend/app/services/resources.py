@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.constants import EXAM_TYPES, RESOURCE_TYPES
 from app.models import Bookmark, Report, Resource, ResourceRating, ResourceStar, Tag, User
 from app.schemas import ResourceOut, SubjectBrief, UnitBrief, Uploader, ViewerState
+from app.services.documents import extension
 from app.services.storage import get_storage
 
 
@@ -69,6 +70,10 @@ def to_out(r: Resource, viewer: ViewerState | None = None, score: dict | None = 
         file_url=r.file_url,
         file_name=r.file_name,
         file_size=r.file_size,
+        file_type=r.file_type,
+        file_ext=extension(r.file_name) or "pdf",
+        mime_type=r.mime_type,
+        public_file_url=get_storage().public_url(r.file_key),
         page_count=r.page_count,
         subject=SubjectBrief.model_validate(r.subject),
         unit=UnitBrief.model_validate(r.unit),

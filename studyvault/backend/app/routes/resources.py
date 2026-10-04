@@ -13,7 +13,7 @@ from app.constants import EXAM_TYPES, REPORT_REASONS, RESOURCE_TYPES
 from app.models import Bookmark, Report, Resource, ResourceRating, ResourceStar, ResourceText, ResourceView, Unit, User
 from app.routes.deps import DB, CurrentUser, OptionalUser
 from app.schemas import ProgressIn, RatingIn, ReportIn, ResourceOut, ResourceUpdate, StatsOut
-from app.services.pdf_text import InvalidPdf, extract_pdf
+from app.services.documents import InvalidDocument, extract_document, format_for
 from app.services.resources import delete_resource, refresh_counters, resource_query, serialize, set_tags, viewer_states
 from app.services.storage import StorageError, get_storage
 
@@ -71,13 +71,17 @@ def create_upload_url(body: UploadUrlIn, user: CurrentUser):
     storage = get_storage()
     if not storage.supports_direct_upload:
         raise HTTPException(400, "Direct upload is not available; send the file to POST /api/resources")
+    try:
+        fmt = format_for(body.filename)
+    except InvalidDocument as exc:
+        raise HTTPException(422, str(exc)) from exc
     if body.size > _max_bytes():
-        raise HTTPException(413, f"PDF is larger than {get_settings().max_upload_mb} MB")
+        raise HTTPException(413, f"File is larger than {get_settings().max_upload_mb} MB")
     key = storage.new_key(body.filename)
     # Tag the key with the uploader so nobody can claim someone else's object.
     folder, name = key.rsplit("/", 1)
     key = f"{folder}{_user_key_marker(user)}{name}"
-    return {"key": key, "upload_url": storage.create_upload_url(key)}
+    return {"key": key, "upload_url": storage.create_upload_url(key), "content_type": fmt.mime}
 
 
 @router.post("", response_model=ResourceOut, status_code=status.HTTP_201_CREATED)
@@ -105,7 +109,7 @@ def upload(
     if file is not None:
         size = file.size if file.size is not None else len(file.file.read())
         file.file.seek(0)
-        stream, name, key = file.file, file.filename or "document.pdf", None
+        stream, name, key = file.file, file.filename or "document", None
     elif file_key:
         if _user_key_marker(user) not in file_key or db.scalar(select(Resource.id).where(Resource.file_key == file_key)):
             raise HTTPException(403, "Invalid upload reference")
@@ -113,9 +117,9 @@ def upload(
             data = storage.read(file_key)
         except StorageError as exc:
             raise HTTPException(422, "Uploaded file not found — please upload again") from exc
-        stream, name, key, size = io.BytesIO(data), file_name or "document.pdf", file_key, len(data)
+        stream, name, key, size = io.BytesIO(data), file_name or file_key.rsplit("/", 1)[-1], file_key, len(data)
     else:
-        raise HTTPException(422, "Attach a PDF file")
+        raise HTTPException(422, "Attach a file")
 
     def reject(code: int, msg: str):
         if key:
@@ -123,16 +127,16 @@ def upload(
         raise HTTPException(code, msg)
 
     if size > _max_bytes():
-        reject(413, f"PDF is larger than {get_settings().max_upload_mb} MB")
+        reject(413, f"File is larger than {get_settings().max_upload_mb} MB")
     if size == 0:
         reject(422, "The file is empty")
     try:
-        info = extract_pdf(stream)
-    except InvalidPdf as exc:
+        info = extract_document(stream, name)
+    except InvalidDocument as exc:
         reject(422, str(exc))
 
     if key is None:
-        key = storage.save(stream, name)
+        key = storage.save(stream, name, info.mime)
     try:
         resource = Resource(
             title=title.strip(),
@@ -140,6 +144,8 @@ def upload(
             file_key=key,
             file_name=name,
             file_size=size,
+            file_type=info.kind,
+            mime_type=info.mime,
             page_count=info.page_count,
             subject_id=subject_id,
             unit_id=unit_id,
@@ -208,11 +214,23 @@ def download_file(resource_id: int, db: DB, download: bool = Query(False)):
         raise HTTPException(404, "File is missing from storage")
     return FileResponse(
         path,
-        media_type="application/pdf",
+        media_type=r.mime_type,
         filename=r.file_name,
         content_disposition_type="attachment" if download else "inline",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+TEXT_PREVIEW_CHARS = 60_000
+
+
+@router.get("/{resource_id}/text")
+def document_text(resource_id: int, db: DB):
+    """Extracted text, used as an in-app preview for formats browsers can't render."""
+    if not db.get(Resource, resource_id):
+        raise HTTPException(404, "Resource not found")
+    content = db.scalar(select(ResourceText.content).where(ResourceText.resource_id == resource_id)) or ""
+    return {"text": content[:TEXT_PREVIEW_CHARS], "truncated": len(content) > TEXT_PREVIEW_CHARS}
 
 
 @router.post("/{resource_id}/view", response_model=StatsOut)

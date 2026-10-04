@@ -116,6 +116,11 @@ class ResourceOut(ORM):
     file_url: str
     file_name: str
     file_size: int
+    file_type: str
+    file_ext: str
+    mime_type: str
+    # Direct URL from object storage (lets third-party viewers fetch the file).
+    public_file_url: str | None = None
     page_count: int
     subject: SubjectBrief
     unit: UnitBrief

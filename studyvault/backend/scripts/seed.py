@@ -21,10 +21,12 @@ from sqlalchemy import func, insert, select, text
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Bookmark, Report, Resource, ResourceRating, ResourceStar, ResourceText, ResourceView, Subject, Unit, User
+from app.services.documents import extract_document
 from app.services.pdf_text import extract_pdf
 from app.services.resources import set_tags
 from app.services.security import hash_password
 from app.services.storage import SupabaseStorage, get_storage
+from scripts.sample_documents import SAMPLES
 from scripts.seed_data import FIRST_NAMES, NAMED_USERS, SUBJECTS
 
 rng = random.Random(20261004)
@@ -234,7 +236,7 @@ def main() -> None:
             exam_label = {"mid1": "Mid 1 Examination", "mid2": "Mid 2 Examination", "semester": "Semester Examination"}.get(item.get("exam"))
             pdf = build_pdf(item["kind"], s, item["unit"], s["units"], item["title"], item["year"], exam_label)
             info = extract_pdf(io.BytesIO(pdf))
-            key = storage.save(io.BytesIO(pdf), f"{item['title']}.pdf")
+            key = storage.save(io.BytesIO(pdf), f"{item['title']}.pdf", "application/pdf")
             r = Resource(
                 title=item["title"], description=item["desc"], file_key=key,
                 file_name=item["title"].replace("/", "-").replace(" — ", " - ") + ".pdf", file_size=len(pdf), page_count=info.page_count,
@@ -252,11 +254,28 @@ def main() -> None:
             resources.append((r, quality))
     db.commit()
 
+    print("· non-PDF samples (Word, PowerPoint, Excel, image, Markdown, CSV)")
+    for code, unit_no, rtype, year, title, desc, tags, filename, build in SAMPLES:
+        data = build()
+        info = extract_document(io.BytesIO(data), filename)
+        subj = subject_rows[code]
+        r = Resource(
+            title=title, description=desc, file_key=storage.save(io.BytesIO(data), filename, info.mime),
+            file_name=filename, file_size=len(data), file_type=info.kind, mime_type=info.mime, page_count=info.page_count,
+            subject_id=subj.id, unit_id=subj.units[unit_no - 1].id, resource_type=rtype, year=year,
+            uploaded_by=rng.choice(uploaders).id, created_at=NOW - timedelta(days=rng.randint(2, 60)),
+        )
+        set_tags(db, r, tags)
+        r.text = ResourceText(content=info.text)
+        db.add(r)
+        resources.append((r, rng.betavariate(3, 2)))
+    db.commit()
+
     # Spam upload for the moderation queue.
     dbms = SUBJECTS[0]
     spam_pdf = build_pdf("notes", dbms, 1, dbms["units"], "FREE DOWNLOAD ALL NOTES CLICK HERE", 2025, None)
     info = extract_pdf(io.BytesIO(spam_pdf))
-    spam = Resource(title="FREE DOWNLOAD ALL NOTES CLICK HERE!!!", description="visit my channel for all notes free free free", file_key=storage.save(io.BytesIO(spam_pdf), "spam.pdf"),
+    spam = Resource(title="FREE DOWNLOAD ALL NOTES CLICK HERE!!!", description="visit my channel for all notes free free free", file_key=storage.save(io.BytesIO(spam_pdf), "spam.pdf", "application/pdf"),
                     file_name="free-notes.pdf", file_size=len(spam_pdf), page_count=info.page_count, subject_id=subject_rows["DBMS"].id, unit_id=subject_rows["DBMS"].units[0].id,
                     resource_type="notes", year=2025, uploaded_by=spammer.id, created_at=NOW - timedelta(days=1))
     set_tags(db, spam, ["free", "download"])

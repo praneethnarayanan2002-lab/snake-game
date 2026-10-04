@@ -27,7 +27,7 @@ export default function LibraryPage({ kind }: { kind: 'bookmarks' | 'uploads' })
         actions={
           !isBookmarks && (
             <Link to="/upload" className={buttonVariants({ variant: 'primary' })}>
-              <Upload /> Upload PDF
+              <Upload /> Upload
             </Link>
           )
         }
@@ -51,7 +51,7 @@ export default function LibraryPage({ kind }: { kind: 'bookmarks' | 'uploads' })
           description={isBookmarks ? 'Tap the bookmark icon on any resource to save it here for later.' : 'Upload notes or papers that helped you — they become public instantly and climb the rankings as people star them.'}
           action={
             <Link to={isBookmarks ? '/subjects' : '/upload'} className={buttonVariants({ variant: isBookmarks ? 'secondary' : 'primary', size: 'sm' })}>
-              {isBookmarks ? 'Browse subjects' : 'Upload your first PDF'}
+              {isBookmarks ? 'Browse subjects' : 'Upload your first document'}
             </Link>
           }
         />

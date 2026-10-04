@@ -1,6 +1,6 @@
 """Pluggable file storage.
 
-PDF binaries never touch PostgreSQL: the database only stores the opaque ``file_key``
+File binaries never touch PostgreSQL: the database only stores the opaque ``file_key``
 returned by a backend. Backends: ``local`` (disk, dev) and ``supabase`` (Supabase
 Storage, production). Others (S3, Cloudinary) only need to implement ``StorageBackend``
 and register in ``_BACKENDS``.
@@ -17,6 +17,7 @@ from urllib.parse import quote
 import httpx
 
 from app.config import Settings, get_settings
+from app.services.documents import ALLOWED_MIME_TYPES
 
 
 class StorageError(RuntimeError):
@@ -29,7 +30,7 @@ class StorageBackend(ABC):
     supports_direct_upload = False
 
     @abstractmethod
-    def save(self, fileobj: BinaryIO, filename: str) -> str:
+    def save(self, fileobj: BinaryIO, filename: str, content_type: str = "application/octet-stream") -> str:
         """Persist the stream and return a backend-specific key."""
 
     @abstractmethod
@@ -70,7 +71,7 @@ class LocalDiskStorage(StorageBackend):
             raise ValueError("Invalid storage key")
         return path
 
-    def save(self, fileobj: BinaryIO, filename: str) -> str:
+    def save(self, fileobj: BinaryIO, filename: str, content_type: str = "application/octet-stream") -> str:
         key = self.new_key(filename)
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,13 +115,15 @@ class SupabaseStorage(StorageBackend):
         return res
 
     def ensure_bucket(self) -> None:
+        config = {"public": True, "allowed_mime_types": ALLOWED_MIME_TYPES}
         res = self.http.get(f"{self.base}/bucket/{self.bucket}")
         if res.status_code == 200:
+            self._check(self.http.put(f"{self.base}/bucket/{self.bucket}", json=config), "update bucket")
             return
         self._check(
             self.http.post(
                 f"{self.base}/bucket",
-                json={"id": self.bucket, "name": self.bucket, "public": True, "allowed_mime_types": ["application/pdf"]},
+                json={"id": self.bucket, "name": self.bucket, "public": True, "allowed_mime_types": ALLOWED_MIME_TYPES},
             ),
             "create bucket",
         )
@@ -128,10 +131,10 @@ class SupabaseStorage(StorageBackend):
     def empty_bucket(self) -> None:
         self._check(self.http.post(f"{self.base}/bucket/{self.bucket}/empty"), "empty bucket")
 
-    def save(self, fileobj: BinaryIO, filename: str) -> str:
+    def save(self, fileobj: BinaryIO, filename: str, content_type: str = "application/octet-stream") -> str:
         key = self.new_key(filename)
         self._check(
-            self.http.post(f"{self.base}/object/{self._obj(key)}", content=fileobj.read(), headers={"Content-Type": "application/pdf"}),
+            self.http.post(f"{self.base}/object/{self._obj(key)}", content=fileobj.read(), headers={"Content-Type": content_type}),
             "upload",
         )
         return key

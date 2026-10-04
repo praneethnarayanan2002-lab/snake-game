@@ -9,12 +9,12 @@ import { Container } from '@/components/layout/AppShell'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input, Label, Textarea } from '@/components/ui/primitives'
 import { useSubjects } from '@/hooks/useData'
-import { EXAM_RESOURCE_TYPES, EXAM_TYPES, MAX_UPLOAD_MB, RESOURCE_TYPES, TYPE_BY_VALUE, YEARS } from '@/lib/constants'
+import { EXAM_RESOURCE_TYPES, EXAM_TYPES, MAX_UPLOAD_MB, RESOURCE_TYPES, SUPPORTED_FORMATS_LABEL, TYPE_BY_VALUE, UPLOAD_ACCEPT, YEARS } from '@/lib/constants'
 import type { Resource, ResourceType } from '@/lib/types'
 import { cn, formatBytes, pad2 } from '@/lib/utils'
 import { api } from '@/services/api'
 
-const STEPS = ['PDF', 'Subject', 'Unit', 'Type', 'Year', 'Publish'] as const
+const STEPS = ['File', 'Subject', 'Unit', 'Type', 'Year', 'Publish'] as const
 
 interface Draft {
   file: File | null
@@ -101,7 +101,7 @@ export default function UploadPage() {
     setError(null)
     if (rejected.length) {
       const code = rejected[0].errors[0]?.code
-      setError(code === 'file-too-large' ? `That file is over ${MAX_UPLOAD_MB} MB.` : 'Only PDF files are supported.')
+      setError(code === 'file-too-large' ? `That file is over ${MAX_UPLOAD_MB} MB.` : `That file type isn't supported. Use ${SUPPORTED_FORMATS_LABEL}.`)
       return
     }
     const file = accepted[0]
@@ -111,7 +111,7 @@ export default function UploadPage() {
   }
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: UPLOAD_ACCEPT,
     maxSize: MAX_UPLOAD_MB * 1024 * 1024,
     multiple: false,
   })
@@ -166,7 +166,7 @@ export default function UploadPage() {
     <Container className="max-w-3xl">
       <div className="mb-8">
         <div className="mb-2 text-xs font-medium text-subtle">Share with your batch</div>
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] sm:text-[28px]">Upload a PDF</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em] sm:text-[28px]">Upload a document</h1>
         <p className="mt-1.5 text-sm text-muted">Six quick steps. Once published, it's in the public library instantly.</p>
       </div>
 
@@ -230,11 +230,11 @@ export default function UploadPage() {
                   <motion.div animate={isDragActive ? { y: -6, scale: 1.06 } : { y: 0, scale: 1 }} className="relative mb-5 grid size-14 place-items-center rounded-2xl border border-border bg-bg-elevated shadow-md">
                     <CloudUpload className={cn('size-6', isDragActive ? 'text-accent' : 'text-muted')} />
                   </motion.div>
-                  <p className="relative text-base font-semibold tracking-tight">{isDragActive ? 'Release to upload' : 'Drop your PDF here'}</p>
+                  <p className="relative text-base font-semibold tracking-tight">{isDragActive ? 'Release to upload' : 'Drop your file here'}</p>
                   <p className="relative mt-1 text-sm text-muted">
                     or <span className="font-medium text-accent">click to browse</span>
                   </p>
-                  <p className="relative mt-5 text-xs text-subtle">PDF • Max {MAX_UPLOAD_MB}MB</p>
+                  <p className="relative mt-5 max-w-md text-xs text-subtle">PDF • Word • PowerPoint • Excel • OpenDocument • TXT/MD/CSV • Images — max {MAX_UPLOAD_MB}MB</p>
                 </div>
                 {draft.file && (
                   <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
@@ -404,7 +404,7 @@ export default function UploadPage() {
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-6 overflow-hidden">
                       <div className="rounded-xl border border-border bg-surface p-4">
                         <div className="mb-2 flex items-center justify-between text-[13px]">
-                          <span className="font-medium">{progress < 100 ? 'Uploading…' : 'Processing PDF & extracting text…'}</span>
+                          <span className="font-medium">{progress < 100 ? 'Uploading…' : 'Processing file & extracting text…'}</span>
                           <span className="text-muted tabular">{progress}%</span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
@@ -503,7 +503,7 @@ function UploadSuccess({ resource, onAnother }: { resource: Resource; onAnother:
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.46 }} className="relative mt-6 rounded-xl border border-border bg-bg-elevated p-4 text-left">
           <div className="text-sm font-semibold">{resource.title}</div>
           <div className="mt-1 text-xs text-muted">
-            {resource.subject.code} · Unit {resource.unit.number} · {resource.resource_type_label} · {resource.year} · {resource.page_count} pages
+            {resource.subject.code} · Unit {resource.unit.number} · {resource.resource_type_label} · {resource.year} · {resource.file_ext.toUpperCase()}
           </div>
         </motion.div>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }} className="relative mt-6 flex flex-col justify-center gap-2 sm:flex-row">

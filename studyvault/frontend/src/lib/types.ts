@@ -1,5 +1,7 @@
 export type ResourceType = 'notes' | 'pyq' | 'mid' | 'semester' | 'question_bank' | 'assignment' | 'reference'
 
+export type FileKind = 'pdf' | 'document' | 'presentation' | 'spreadsheet' | 'text' | 'image'
+
 export interface UserPublic {
   id: number
   username: string
@@ -60,6 +62,10 @@ export interface Resource {
   file_url: string
   file_name: string
   file_size: number
+  file_type: FileKind
+  file_ext: string
+  mime_type: string
+  public_file_url: string | null
   page_count: number
   subject: SubjectBrief
   unit: { id: number; number: number; title: string }
@@ -131,6 +137,7 @@ export interface Meta {
   exam_types: Record<string, string>
   report_reasons: Record<string, string>
   direct_upload: boolean
+  formats: Record<string, { kind: FileKind; label: string; mime: string }>
   max_upload_mb: number
 }
 

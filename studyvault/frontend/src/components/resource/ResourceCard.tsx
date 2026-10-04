@@ -9,13 +9,13 @@ import type { Resource } from '@/lib/types'
 import { cn, formatCount } from '@/lib/utils'
 import { BookmarkToggle, RatingDisplay, StarToggle } from './StarControls'
 
-export function PdfGlyph({ className, type }: { className?: string; type?: Resource['resource_type'] }) {
+export function FileGlyph({ className, type, ext = 'pdf' }: { className?: string; type?: Resource['resource_type']; ext?: string }) {
   const Icon = type ? TYPE_BY_VALUE[type]?.icon : undefined
   return (
     <div className={cn('relative grid shrink-0 place-items-center rounded-lg border border-border bg-surface-2', className)}>
       {Icon && <Icon className="size-[45%] text-muted" strokeWidth={1.6} />}
-      <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-[4px] border border-border bg-bg-elevated px-1 font-mono text-[9px] leading-[14px] font-semibold tracking-wide text-muted">
-        PDF
+      <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-[4px] border border-border bg-bg-elevated px-1 font-mono text-[9px] leading-[14px] font-semibold tracking-wide text-muted uppercase">
+        {ext.slice(0, 4)}
       </span>
     </div>
   )
@@ -61,7 +61,7 @@ export function ResourceCard({ resource, index = 0, showWhy = false }: { resourc
         )}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
-          <PdfGlyph type={r.resource_type} className="size-10" />
+          <FileGlyph type={r.resource_type} ext={r.file_ext} className="size-10" />
           <div className="flex items-center gap-1.5">
             {r.recommended && <RecommendedBadge />}
             <StarToggle starred={a.starred} count={a.counts.star_count} onToggle={a.toggleStar} size="sm" />
@@ -87,7 +87,7 @@ export function ResourceCard({ resource, index = 0, showWhy = false }: { resourc
               <span className="truncate">{r.uploader.username}</span>
             </span>
             <span className="inline-flex items-center gap-0.5 text-xs font-medium text-fg">
-              Open PDF
+              Open
               <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </span>
           </div>
@@ -116,7 +116,7 @@ export function ResourceRow({ resource, index = 0 }: { resource: Resource; index
           r.recommended ? 'border-accent/40 bg-gradient-to-b from-accent-soft to-surface to-60%' : 'border-border',
         )}
       >
-        <PdfGlyph type={r.resource_type} className="hidden size-14 sm:grid" />
+        <FileGlyph type={r.resource_type} ext={r.file_ext} className="hidden size-14 sm:grid" />
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-1.5">
             {r.recommended && <RecommendedBadge />}
@@ -146,7 +146,7 @@ export function ResourceRow({ resource, index = 0 }: { resource: Resource; index
             <StarToggle starred={a.starred} count={a.counts.star_count} onToggle={a.toggleStar} />
           </div>
           <span className="hidden items-center gap-1 rounded-md bg-fg px-2.5 py-1.5 text-xs font-medium text-bg transition-opacity group-hover:opacity-90 sm:inline-flex">
-            Open PDF <ArrowUpRight className="size-3.5" />
+            Open <ArrowUpRight className="size-3.5" />
           </span>
         </div>
       </Link>

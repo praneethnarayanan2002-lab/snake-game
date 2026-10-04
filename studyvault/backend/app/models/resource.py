@@ -62,6 +62,9 @@ class Resource(Base):
         CheckConstraint(_in_list("resource_type", RESOURCE_TYPES), name="ck_resource_type"),
         CheckConstraint(f"exam_type IS NULL OR {_in_list('exam_type', EXAM_TYPES)}", name="ck_exam_type"),
         CheckConstraint("year >= 1990 AND year <= 2100", name="ck_resource_year"),
+        CheckConstraint(
+            "file_type IN ('pdf', 'document', 'presentation', 'spreadsheet', 'text', 'image')", name="ck_resource_file_type"
+        ),
         CheckConstraint("average_rating >= 0 AND average_rating <= 5", name="ck_resource_avg_rating"),
         Index("ix_resources_search_vector", "search_vector", postgresql_using="gin"),
         Index("ix_resources_title_trgm", "title", postgresql_using="gin", postgresql_ops={"title": "gin_trgm_ops"}),
@@ -75,6 +78,9 @@ class Resource(Base):
     file_key: Mapped[str] = mapped_column(String(255), unique=True)
     file_name: Mapped[str] = mapped_column(String(255))
     file_size: Mapped[int] = mapped_column(BigInteger, default=0)
+    # pdf | document | presentation | spreadsheet | text | image
+    file_type: Mapped[str] = mapped_column(String(16), default="pdf", server_default="pdf")
+    mime_type: Mapped[str] = mapped_column(String(127), default="application/pdf", server_default="application/pdf")
     page_count: Mapped[int] = mapped_column(Integer, default=0)
 
     subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id", ondelete="CASCADE"), index=True)

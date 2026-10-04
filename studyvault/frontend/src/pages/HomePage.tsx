@@ -162,9 +162,9 @@ export default function HomePage() {
         <section className="mt-16 mb-4 overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="grid gap-px bg-border md:grid-cols-3">
             {[
-              { icon: Layers, title: 'Organized', body: 'Subject → Unit → Type → Year. No more scrolling through 40 WhatsApp PDFs.' },
+              { icon: Layers, title: 'Organized', body: 'Subject → Unit → Type → Year. No more scrolling through 40 WhatsApp files.' },
               { icon: Sparkles, title: 'Ranked', body: 'Relevance, stars, ratings and views decide what floats to the top.' },
-              { icon: Zap, title: 'Ready to study', body: 'Open in the in-app reader, search inside the PDF, pick up where you left off.' },
+              { icon: Zap, title: 'Ready to study', body: 'Open in the in-app reader, search inside any file, pick up where you left off.' },
             ].map((f) => (
               <div key={f.title} className="bg-surface p-6">
                 <f.icon className="size-5 text-accent" />
@@ -185,7 +185,7 @@ export default function HomePage() {
                 </Link>
               )}
               <Link to="/upload" className={cn(buttonVariants({ variant: 'primary' }))}>
-                <Upload /> Upload PDF
+                <Upload /> Upload
               </Link>
             </div>
           </div>

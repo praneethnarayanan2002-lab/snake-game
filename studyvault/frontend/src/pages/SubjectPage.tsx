@@ -154,7 +154,7 @@ export default function SubjectPage() {
               description={dq ? 'Try a broader term or another unit.' : 'Be the first to share notes or papers for this unit — it helps everyone in your batch.'}
               action={
                 <Link to={`/upload?subject=${slug}${unit ? `&unit=${unit}` : ''}`} className={buttonVariants({ variant: 'primary', size: 'sm' })}>
-                  <Upload /> Upload a PDF
+                  <Upload /> Upload a document
                 </Link>
               }
             />

@@ -169,7 +169,7 @@ export default function SearchPage() {
           }
           action={
             <Link to="/upload" className={buttonVariants({ variant: 'primary', size: 'sm' })}>
-              <Upload /> Upload a PDF
+              <Upload /> Upload a document
             </Link>
           }
         />
@@ -202,7 +202,7 @@ function RankingInfo() {
           <p className="font-medium text-fg">Every result gets a weighted score</p>
           <div className="mt-3 space-y-2">
             {[
-              ['Search relevance', 40, 'Title, tags, description and the PDF text itself'],
+              ['Search relevance', 40, 'Title, tags, description and the text inside the file'],
               ['Subject / unit match', 20, 'Detected from your query, e.g. “DBMS unit 3”'],
               ['Resource type match', 15, '“pyq”, “mid”, “semester 2025”…'],
               ['Popularity', 15, 'Stars and views, with a nudge for fresh uploads'],

@@ -4,7 +4,7 @@ import { ArrowRight, Bookmark, BookOpen, Clock, FolderUp, Library, Play, Search,
 import { Link } from 'react-router-dom'
 import { Container } from '@/components/layout/AppShell'
 import { useCommandPalette } from '@/components/layout/CommandPalette'
-import { PdfGlyph, ResourceCard, ResourceCardSkeleton } from '@/components/resource/ResourceCard'
+import { FileGlyph, ResourceCard, ResourceCardSkeleton } from '@/components/resource/ResourceCard'
 import { buttonVariants } from '@/components/ui/button'
 import { AnimatedNumber, EmptyState } from '@/components/ui/feedback'
 import { Card, Kbd, SectionHeader, Skeleton } from '@/components/ui/primitives'
@@ -101,7 +101,7 @@ export default function DashboardPage() {
 
       <div className="mt-12 grid gap-8 lg:grid-cols-2">
         <MiniList title="My bookmarks" icon={Bookmark} items={data?.bookmarks} loading={isLoading} href="/bookmarks" empty="Bookmark resources to build your own revision shelf." />
-        <MiniList title="My uploads" icon={FolderUp} items={data?.uploads} loading={isLoading} href="/my-uploads" empty="Share your first PDF — your batch will thank you." emptyAction={<Link to="/upload" className={buttonVariants({ size: 'sm', variant: 'primary' })}><Upload /> Upload PDF</Link>} />
+        <MiniList title="My uploads" icon={FolderUp} items={data?.uploads} loading={isLoading} href="/my-uploads" empty="Share your first document — your batch will thank you." emptyAction={<Link to="/upload" className={buttonVariants({ size: 'sm', variant: 'primary' })}><Upload /> Upload</Link>} />
       </div>
 
       <section className="mt-12">
@@ -120,7 +120,7 @@ function ContinueCard({ item, index }: { item: RecentItem; index: number }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
       <Link to={`/resources/${r.id}?page=${item.last_page}`} className="group flex gap-4 rounded-xl border border-border bg-surface p-4 shadow-xs transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-md">
-        <PdfGlyph type={r.resource_type} className="size-12" />
+        <FileGlyph type={r.resource_type} ext={r.file_ext} className="size-12" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">{r.title}</div>
           <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">

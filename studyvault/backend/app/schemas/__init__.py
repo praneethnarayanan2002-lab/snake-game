@@ -32,7 +32,6 @@ class SignupIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=8, max_length=128)
     branch: str | None = Field(default=None, max_length=16)
-    regulation: str | None = Field(default=None, pattern=r"^GR\d{2}$")
     current_year: int | None = Field(default=None, ge=1, le=4)
     current_semester: int | None = Field(default=None, ge=1, le=2)
 
@@ -56,7 +55,6 @@ class AuthOut(BaseModel):
 class ProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=120)
     branch: str | None = Field(default=None, max_length=16)
-    regulation: str | None = Field(default=None, pattern=r"^GR\d{2}$")
     current_year: int | None = Field(default=None, ge=1, le=4)
     current_semester: int | None = Field(default=None, ge=1, le=2)
 

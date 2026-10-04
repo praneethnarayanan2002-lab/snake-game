@@ -3,7 +3,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.constants import EXAM_TYPES, REGULATIONS, REPORT_REASONS, RESOURCE_TYPES
+from app.constants import CURRENT_REGULATION_BY_YEAR, EXAM_TYPES, REGULATIONS, REPORT_REASONS, RESOURCE_TYPES
 from app.models import Branch, Resource, Subject, SubjectOffering, Unit
 from app.routes.deps import DB
 from app.schemas import BranchOut, OfferingOut, SubjectListItem, SubjectOut, UnitOut
@@ -99,6 +99,7 @@ def meta(db: DB):
         "formats": {ext: {"kind": f.kind, "label": f.label, "mime": f.mime} for ext, f in FORMATS.items()},
         "max_upload_mb": get_settings().max_upload_mb,
         "regulations": REGULATIONS,
+        "current_regulations": CURRENT_REGULATION_BY_YEAR,
         "branches": [{"code": b.code, "name": b.name} for b in db.scalars(select(Branch).order_by(Branch.id))],
     }
 

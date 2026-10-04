@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, or_, select
 
 from app.config import get_settings
+from app.constants import regulation_for_year
 from app.models import Branch, User
 from app.routes.deps import DB, CurrentUser
 from app.schemas import AuthOut, LoginIn, ProfileUpdate, SignupIn, UserMe
@@ -39,7 +40,7 @@ def signup(body: SignupIn, db: DB):
         full_name=body.full_name.strip(),
         college="GRIET",
         password_hash=hash_password(body.password),
-        regulation=body.regulation,
+        regulation=regulation_for_year(body.current_year),
         current_year=body.current_year,
         current_semester=body.current_semester,
         branch_id=_branch_id(db, body.branch),
@@ -70,6 +71,8 @@ def update_me(body: ProfileUpdate, user: CurrentUser, db: DB):
         user.branch_id = _branch_id(db, data.pop("branch"))
     for k, v in data.items():
         setattr(user, k, v)
+    if "current_year" in data:
+        user.regulation = regulation_for_year(user.current_year)
     db.commit()
     db.refresh(user)
     return user

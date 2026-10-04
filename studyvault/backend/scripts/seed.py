@@ -22,6 +22,7 @@ from pypdf import PdfReader, PdfWriter
 from sqlalchemy import func, select, text
 
 from app.config import get_settings
+from app.constants import regulation_for_year
 from app.database import Base, SessionLocal
 from app.models import Resource, ResourceText, Subject, User
 from app.services.curriculum import DATA_FILE, load_curriculum, semester_label
@@ -147,7 +148,7 @@ def main() -> None:
     ensure_user(db, "admin", email="admin@studyvault.dev", full_name="StudyVault Admin", password_hash=hash_password("admin12345"), is_admin=True, college="GRIET")
     ensure_user(
         db, "sanjith", email="sanjith@studyvault.dev", full_name="Sanjith Kumar", password_hash=hash_password("sanjith12345"),
-        college="GRIET", branch_id=cse.id if cse else None, regulation="GR24", current_year=3, current_semester=1,
+        college="GRIET", branch_id=cse.id if cse else None, regulation=regulation_for_year(3), current_year=3, current_semester=1,
     )
     official = ensure_user(
         db, SYLLABUS_USERNAME, email="syllabus@studyvault.dev", full_name="Official GRIET syllabus",

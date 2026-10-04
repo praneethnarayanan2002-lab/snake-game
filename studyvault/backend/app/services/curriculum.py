@@ -1,7 +1,9 @@
 """Load GRIET's curriculum (data/griet_curriculum.json) into branches/subjects/units.
 
-Idempotent: subjects are matched by course code, so re-running after a new scrape
-updates titles, units and offerings without touching uploaded resources.
+The JSON holds every regulation the scraper found; only the syllabus each year of study
+currently follows (CURRENT_REGULATION_BY_YEAR) is loaded. Idempotent: subjects are matched
+by course code, so re-running after a new scrape updates titles, units and offerings
+without touching uploaded resources.
 """
 
 import json
@@ -11,6 +13,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.constants import CURRENT_REGULATION_BY_YEAR
 from app.models import Branch, Resource, Subject, SubjectOffering, Unit
 
 DATA_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "griet_curriculum.json"
@@ -99,8 +102,24 @@ def semester_label(year: int | None, semester: int | None) -> str:
     return f"{ROMAN[year]} Year" + (f" {ROMAN[semester]} Semester" if semester else "")
 
 
-def load_curriculum(db: Session, data_file: Path = DATA_FILE) -> dict[str, int]:
+def current_courses(courses: list[dict]) -> list[dict]:
+    """Courses of the regulation each year currently follows, with offerings narrowed to
+    the years in which that regulation is being taught (e.g. a GR24 elective listed for
+    IV year is dropped: GR24 students are in III year, IV year follows GR22)."""
+    out = []
+    for c in courses:
+        if CURRENT_REGULATION_BY_YEAR.get(c["year"]) != c["regulation"]:
+            continue
+        offerings = [o for o in c["offerings"] if CURRENT_REGULATION_BY_YEAR.get(o["year"]) == c["regulation"]]
+        out.append({**c, "offerings": offerings})
+    return out
+
+
+def load_curriculum(db: Session, data_file: Path = DATA_FILE, prune: bool = True) -> dict[str, int]:
+    """Upsert the current curriculum. With prune, catalogue courses that are no longer
+    current are removed unless resources are attached to them."""
     data = json.loads(data_file.read_text())
+    courses = current_courses(data["courses"])
     branches = {b.code: b for b in db.scalars(select(Branch))}
     for code, name in data["branches"].items():
         if code in branches:
@@ -116,7 +135,7 @@ def load_curriculum(db: Session, data_file: Path = DATA_FILE) -> dict[str, int]:
     }
     used_units = set(db.scalars(select(Resource.unit_id).distinct()))
     created = updated = 0
-    for c in data["courses"]:
+    for c in courses:
         code, aliases = short_code(c["title"], c["kind"])
         L, T, P, C = c["ltpc"]
         units = c["units"] or [
@@ -175,5 +194,17 @@ def load_curriculum(db: Session, data_file: Path = DATA_FILE) -> dict[str, int]:
             subject.offerings.append(
                 SubjectOffering(branch_id=branches[o["branch"]].id, year=o["year"], semester=o["semester"], elective=o["elective"])
             )
+    pruned = kept_stale = 0
+    if prune:
+        wanted_codes = {c["code"] for c in courses}
+        with_resources = set(db.scalars(select(Resource.subject_id).distinct()))
+        for code, subject in existing.items():
+            if code in wanted_codes:
+                continue
+            if subject.id in with_resources:
+                kept_stale += 1
+            else:
+                db.delete(subject)
+                pruned += 1
     db.commit()
-    return {"created": created, "updated": updated, "branches": len(branches)}
+    return {"created": created, "updated": updated, "pruned": pruned, "kept_stale": kept_stale, "branches": len(branches)}

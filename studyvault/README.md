@@ -53,6 +53,35 @@ The suite covers auth, upload/storage/text extraction, permissions, stars/rating
 
 Frontend type-check and production build: `cd frontend && npm run build`.
 
+## Deploying (Vercel + Supabase)
+
+Production layout: **Vercel** serves the React build and runs FastAPI as a Python serverless function (`api/index.py`, routed by `vercel.json`); **Supabase** provides PostgreSQL and Storage (a public `studyvault-pdfs` bucket). Browsers upload PDFs straight to Supabase through a signed URL (`POST /api/resources/upload-url`), so the 4.5 MB Vercel request limit doesn't cap uploads; the API then downloads the object, validates it and extracts text.
+
+1. **Supabase**: create a project and note
+   - the *direct* (or session pooler) connection string, for migrations and seeding;
+   - the *transaction pooler* connection string (port 6543), for Vercel;
+   - the project URL and the `service_role` key (Project Settings → API).
+2. **Migrate and seed** from your machine:
+   ```bash
+   cd backend && source .venv/bin/activate
+   export STUDYVAULT_DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres'
+   export STUDYVAULT_STORAGE_BACKEND=supabase STUDYVAULT_SUPABASE_URL=https://<ref>.supabase.co STUDYVAULT_SUPABASE_SERVICE_KEY=<service_role>
+   alembic upgrade head
+   python -m scripts.seed        # creates the bucket and uploads the generated PDFs
+   ```
+3. **Vercel**: import the repo with **Root Directory = `studyvault`** (vercel.json takes care of build, output and routing), and set these environment variables:
+
+   | Variable | Value |
+   | --- | --- |
+   | `STUDYVAULT_DATABASE_URL` | Supabase transaction pooler URL (`…pooler.supabase.com:6543/postgres`) |
+   | `STUDYVAULT_SERVERLESS` | `true` (no connection pooling, no prepared statements) |
+   | `STUDYVAULT_SECRET_KEY` | long random string |
+   | `STUDYVAULT_STORAGE_BACKEND` | `supabase` |
+   | `STUDYVAULT_SUPABASE_URL` | `https://<ref>.supabase.co` |
+   | `STUDYVAULT_SUPABASE_SERVICE_KEY` | `service_role` key (server-side only) |
+
+   Or with the CLI: `cd studyvault && vercel link && vercel env add … && vercel deploy --prod`.
+
 ## Project layout
 
 ```

@@ -59,6 +59,36 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
 const json = (data: unknown) => JSON.stringify(data)
 
+function sendXhr(
+  method: string,
+  url: string,
+  body: XMLHttpRequestBodyInit,
+  onProgress: (pct: number) => void,
+  headers: Record<string, string> = {},
+  withAuth = true,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(method, url)
+    const token = tokenStore.get()
+    if (withAuth && token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
+    xhr.onload = () => {
+      let parsed: unknown = null
+      try {
+        parsed = JSON.parse(xhr.responseText)
+      } catch {
+        /* non-JSON body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(parsed)
+      else reject(new ApiError(xhr.status, errorMessage(parsed, 'Upload failed')))
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error — check your connection'))
+    xhr.send(body)
+  })
+}
+
 export interface SearchParams {
   q?: string
   subject?: string
@@ -124,32 +154,33 @@ export const api = {
     request<Resource>(`/api/resources/${id}`, { method: 'PATCH', body: json(data) }),
   deleteResource: (id: number) => request<void>(`/api/resources/${id}`, { method: 'DELETE' }),
 
-  /** Multipart upload with progress via XHR (fetch has no upload progress events). */
-  upload: (input: UploadInput, onProgress: (pct: number) => void) =>
-    new Promise<Resource>((resolve, reject) => {
-      const form = new FormData()
-      Object.entries(input).forEach(([k, v]) => {
-        if (v !== undefined && v !== '') form.append(k, v instanceof File ? v : String(v))
+  /**
+   * Upload with progress via XHR (fetch has no upload progress events). When storage
+   * supports it, the PDF goes straight to object storage through a signed URL and the
+   * API only receives metadata — serverless hosts cap request bodies at a few MB.
+   */
+  upload: async (input: UploadInput, onProgress: (pct: number) => void): Promise<Resource> => {
+    const { file, ...meta } = input
+    const fields: Record<string, string> = {}
+    Object.entries(meta).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') fields[k] = String(v)
+    })
+    const { direct_upload } = await api.meta()
+    const form = new FormData()
+    Object.entries(fields).forEach(([k, v]) => form.append(k, v))
+    if (direct_upload) {
+      const { key, upload_url } = await request<{ key: string; upload_url: string }>('/api/resources/upload-url', {
+        method: 'POST',
+        body: json({ filename: file.name, size: file.size }),
       })
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${API_BASE}/api/resources`)
-      const token = tokenStore.get()
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
-      xhr.onload = () => {
-        const body = (() => {
-          try {
-            return JSON.parse(xhr.responseText)
-          } catch {
-            return null
-          }
-        })()
-        if (xhr.status >= 200 && xhr.status < 300) resolve(body as Resource)
-        else reject(new ApiError(xhr.status, errorMessage(body, 'Upload failed')))
-      }
-      xhr.onerror = () => reject(new ApiError(0, 'Network error — check your connection'))
-      xhr.send(form)
-    }),
+      await sendXhr('PUT', upload_url, file, onProgress, { 'Content-Type': 'application/pdf', 'x-upsert': 'false' }, false)
+      form.append('file_key', key)
+      form.append('file_name', file.name)
+      return sendXhr('POST', `${API_BASE}/api/resources`, form, () => {}) as Promise<Resource>
+    }
+    form.append('file', file)
+    return sendXhr('POST', `${API_BASE}/api/resources`, form, onProgress) as Promise<Resource>
+  },
 
   dashboard: () => request<Dashboard>('/api/me/dashboard'),
   myUploads: () => request<Resource[]>('/api/me/uploads'),

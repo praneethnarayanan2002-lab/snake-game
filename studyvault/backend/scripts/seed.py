@@ -24,7 +24,7 @@ from app.models import Bookmark, Report, Resource, ResourceRating, ResourceStar,
 from app.services.pdf_text import extract_pdf
 from app.services.resources import set_tags
 from app.services.security import hash_password
-from app.services.storage import get_storage
+from app.services.storage import SupabaseStorage, get_storage
 from scripts.seed_data import FIRST_NAMES, NAMED_USERS, SUBJECTS
 
 rng = random.Random(20261004)
@@ -177,8 +177,11 @@ def plan_resources(subject: dict) -> list[dict]:
 def reset(db) -> None:
     db.execute(text("TRUNCATE users, subjects, units, resources, resource_texts, tags, resource_tags, resource_stars, resource_ratings, bookmarks, resource_views, reports RESTART IDENTITY CASCADE"))
     db.commit()
-    storage_dir = get_settings().storage_dir
-    if storage_dir.exists():
+    storage = get_storage()
+    if isinstance(storage, SupabaseStorage):
+        storage.ensure_bucket()
+        storage.empty_bucket()
+    elif (storage_dir := get_settings().storage_dir).exists():
         shutil.rmtree(storage_dir)
 
 
@@ -194,6 +197,8 @@ def main() -> None:
         print("Database already seeded (use --reset to reseed).")
         return
     storage = get_storage()
+    if isinstance(storage, SupabaseStorage):
+        storage.ensure_bucket()
 
     print("· users")
     shared_hash = hash_password("password123")

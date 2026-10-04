@@ -130,6 +130,8 @@ export interface Meta {
   resource_types: Record<ResourceType, string>
   exam_types: Record<string, string>
   report_reasons: Record<string, string>
+  direct_upload: boolean
+  max_upload_mb: number
 }
 
 export interface ExamPlan {

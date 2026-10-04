@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import get_settings
+from app.services.storage import get_storage
 from app.constants import EXAM_TYPES, REPORT_REASONS, RESOURCE_TYPES
 from app.models import Resource, Subject
 from app.routes.deps import DB
@@ -56,7 +58,13 @@ def subject_out(db: Session, subjects: list[Subject]) -> list[SubjectOut]:
 
 @router.get("/meta")
 def meta():
-    return {"resource_types": RESOURCE_TYPES, "exam_types": EXAM_TYPES, "report_reasons": REPORT_REASONS}
+    return {
+        "resource_types": RESOURCE_TYPES,
+        "exam_types": EXAM_TYPES,
+        "report_reasons": REPORT_REASONS,
+        "direct_upload": get_storage().supports_direct_upload,
+        "max_upload_mb": get_settings().max_upload_mb,
+    }
 
 
 @router.get("/subjects", response_model=list[SubjectOut])

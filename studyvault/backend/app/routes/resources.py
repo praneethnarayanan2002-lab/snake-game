@@ -1,8 +1,10 @@
+import io
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 
@@ -13,7 +15,7 @@ from app.routes.deps import DB, CurrentUser, OptionalUser
 from app.schemas import ProgressIn, RatingIn, ReportIn, ResourceOut, ResourceUpdate, StatsOut
 from app.services.pdf_text import InvalidPdf, extract_pdf
 from app.services.resources import delete_resource, refresh_counters, resource_query, serialize, set_tags, viewer_states
-from app.services.storage import get_storage
+from app.services.storage import StorageError, get_storage
 
 router = APIRouter(prefix="/api/resources", tags=["resources"])
 
@@ -49,11 +51,39 @@ def _stats(db, r: Resource, user: User | None) -> StatsOut:
     )
 
 
+class UploadUrlIn(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    size: int = Field(gt=0)
+
+
+def _max_bytes() -> int:
+    return get_settings().max_upload_mb * 1024 * 1024
+
+
+def _user_key_marker(user: User) -> str:
+    return f"/u{user.id}-"
+
+
+@router.post("/upload-url")
+def create_upload_url(body: UploadUrlIn, user: CurrentUser):
+    """Signed URL for uploading straight to object storage (used when the API sits behind
+    a small request-size limit, e.g. Vercel functions). Finish with POST /api/resources."""
+    storage = get_storage()
+    if not storage.supports_direct_upload:
+        raise HTTPException(400, "Direct upload is not available; send the file to POST /api/resources")
+    if body.size > _max_bytes():
+        raise HTTPException(413, f"PDF is larger than {get_settings().max_upload_mb} MB")
+    key = storage.new_key(body.filename)
+    # Tag the key with the uploader so nobody can claim someone else's object.
+    folder, name = key.rsplit("/", 1)
+    key = f"{folder}{_user_key_marker(user)}{name}"
+    return {"key": key, "upload_url": storage.create_upload_url(key)}
+
+
 @router.post("", response_model=ResourceOut, status_code=status.HTTP_201_CREATED)
 def upload(
     db: DB,
     user: CurrentUser,
-    file: Annotated[UploadFile, File()],
     title: Annotated[str, Form(min_length=3, max_length=200)],
     subject_id: Annotated[int, Form()],
     unit_id: Annotated[int, Form()],
@@ -62,30 +92,53 @@ def upload(
     description: Annotated[str, Form(min_length=1, max_length=4000)],
     tags: Annotated[str, Form(min_length=1)],
     exam_type: Annotated[str | None, Form()] = None,
+    file: Annotated[UploadFile | None, File()] = None,
+    file_key: Annotated[str | None, Form(max_length=255)] = None,
+    file_name: Annotated[str | None, Form(max_length=255)] = None,
 ):
+    """Create a resource from either a multipart ``file`` or a ``file_key`` previously
+    uploaded through ``/upload-url``."""
     exam_type = exam_type or None
     _validate_meta(db, subject_id, unit_id, resource_type, exam_type)
-
-    max_bytes = get_settings().max_upload_mb * 1024 * 1024
-    size = file.size if file.size is not None else len(file.file.read())
-    file.file.seek(0)
-    if size > max_bytes:
-        raise HTTPException(413, f"PDF is larger than {get_settings().max_upload_mb} MB")
-    if size == 0:
-        raise HTTPException(422, "The file is empty")
-    try:
-        info = extract_pdf(file.file)
-    except InvalidPdf as exc:
-        raise HTTPException(422, str(exc)) from exc
-
     storage = get_storage()
-    key = storage.save(file.file, file.filename or "document.pdf")
+
+    if file is not None:
+        size = file.size if file.size is not None else len(file.file.read())
+        file.file.seek(0)
+        stream, name, key = file.file, file.filename or "document.pdf", None
+    elif file_key:
+        if _user_key_marker(user) not in file_key or db.scalar(select(Resource.id).where(Resource.file_key == file_key)):
+            raise HTTPException(403, "Invalid upload reference")
+        try:
+            data = storage.read(file_key)
+        except StorageError as exc:
+            raise HTTPException(422, "Uploaded file not found — please upload again") from exc
+        stream, name, key, size = io.BytesIO(data), file_name or "document.pdf", file_key, len(data)
+    else:
+        raise HTTPException(422, "Attach a PDF file")
+
+    def reject(code: int, msg: str):
+        if key:
+            storage.delete(key)
+        raise HTTPException(code, msg)
+
+    if size > _max_bytes():
+        reject(413, f"PDF is larger than {get_settings().max_upload_mb} MB")
+    if size == 0:
+        reject(422, "The file is empty")
+    try:
+        info = extract_pdf(stream)
+    except InvalidPdf as exc:
+        reject(422, str(exc))
+
+    if key is None:
+        key = storage.save(stream, name)
     try:
         resource = Resource(
             title=title.strip(),
             description=description.strip(),
             file_key=key,
-            file_name=file.filename or "document.pdf",
+            file_name=name,
             file_size=size,
             page_count=info.page_count,
             subject_id=subject_id,
@@ -148,7 +201,7 @@ def download_file(resource_id: int, db: DB, download: bool = Query(False)):
     if not r:
         raise HTTPException(404, "Resource not found")
     storage = get_storage()
-    if url := storage.public_url(r.file_key):
+    if url := storage.public_url(r.file_key, r.file_name if download else None):
         return RedirectResponse(url)
     path = storage.local_path(r.file_key)
     if not path or not path.is_file():

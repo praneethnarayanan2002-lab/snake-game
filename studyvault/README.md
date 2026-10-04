@@ -1,6 +1,6 @@
 # StudyVault
 
-A community-driven academic document library for college students. Upload notes and papers once — PDF, Word, PowerPoint, Excel, OpenDocument, text/Markdown/CSV, RTF or images; everyone can find them, organised **Subject → Unit → Resource type → Year** and ranked by relevance and community signals.
+A community-driven document library for **GRIET** (Gokaraju Rangaraju Institute of Engineering and Technology) B.Tech students. Upload notes and papers once — PDF, Word, PowerPoint, Excel, OpenDocument, text/Markdown/CSV, RTF or images; everyone can find them, organised **Branch → Year · Semester → Course → Unit → Resource type** and ranked by relevance and community signals. Unofficial student project; syllabus data comes from [griet.ac.in/syllabus.php](https://www.griet.ac.in/syllabus.php).
 
 - **Frontend:** React 19 · Vite · Tailwind CSS v4 · framer-motion · cmdk · Radix UI · react-pdf
 - **Backend:** FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL 16 (full-text search + pg_trgm) · pypdf
@@ -21,9 +21,8 @@ Open http://localhost:5173. API docs are at http://localhost:8000/docs.
 
 | Account | Login | Password |
 | --- | --- | --- |
-| Student | `sanjith` | `sanjith12345` |
+| Student (CSE · III-I · GR24) | `sanjith` | `sanjith12345` |
 | Admin | `admin` | `admin12345` |
-| Other seed users | `priya`, `arjun`, `meera`, … | `password123` |
 
 Options: `./dev.sh --reseed` wipes and regenerates the seed data; `./dev.sh --no-docker` uses an existing Postgres from `STUDYVAULT_DATABASE_URL` (see `backend/.env.example`).
 
@@ -69,7 +68,7 @@ Production layout: **Vercel** serves the React build and runs FastAPI as a Pytho
    export STUDYVAULT_DATABASE_URL='postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres'
    export STUDYVAULT_STORAGE_BACKEND=supabase STUDYVAULT_SUPABASE_URL=https://<ref>.supabase.co STUDYVAULT_SUPABASE_SERVICE_KEY=<service_role>
    alembic upgrade head
-   python -m scripts.seed        # creates the bucket and uploads the generated PDFs
+   python -m scripts.seed --pdf-dir /tmp/griet   # creates the bucket, loads the GRIET curriculum, uploads the official syllabus excerpts
    ```
 3. **Vercel**: import the repo with **Root Directory = `studyvault`** (vercel.json takes care of build, output and routing), and set these environment variables:
 
@@ -98,7 +97,9 @@ studyvault/
 │   │   ├── routes/             auth, subjects, resources, search, users/dashboard, admin
 │   │   └── services/           storage, pdf_text, query_parser, ranking, search, security
 │   ├── alembic/                migrations
-│   ├── scripts/seed.py         seed users, curriculum and generated PDFs (reportlab)
+│   ├── data/griet_curriculum.json  parsed GRIET syllabus books (GR22/GR24/GR25, all branches)
+│   ├── scripts/griet_scrape.py download + parse the official syllabus PDFs
+│   ├── scripts/seed.py         load the current curriculum, demo accounts, official syllabus excerpts
 │   └── tests/
 └── frontend/src/
     ├── components/ui/          design-system primitives (button, card, dialog, badge, effects…)
@@ -111,6 +112,17 @@ studyvault/
 ```
 
 ## How it works
+
+### GRIET curriculum: one current syllabus per year
+`scripts/griet_scrape.py` downloads every B.Tech syllabus book from griet.ac.in and parses each course (code, title, L/T/P/C, outcomes, units 1–5 with topics, textbooks, lab experiments, which branch takes it in which year/semester, page range) into `data/griet_curriculum.json`. The JSON keeps every regulation, but the loader (`app/services/curriculum.py`) only loads the syllabus each year of study currently follows — `CURRENT_REGULATION_BY_YEAR` in `app/constants.py`:
+
+| Year of study (2026–27) | Regulation |
+| --- | --- |
+| I and II year | GR25 (admitted 2025 onwards) |
+| III year | GR24 |
+| IV year | GR22 |
+
+Students pick **branch + year + semester** at signup (or in a one-time onboarding dialog); the API derives `regulation` from the year. Their current-semester core courses become their "main subjects" (dashboard, sidebar, home, upload, Exam Mode), while search, the ⌘K palette and the Subjects page cover every course of every year and branch. Next academic year, bump the mapping and re-run `python -m scripts.seed` (idempotent; courses that stop being current are pruned unless resources are attached). IT, CSIT and CSE (AI) only appear in the GR22 book, so they only have IV-year courses.
 
 ### Storage
 `app/services/storage.py` defines a `StorageBackend` interface (`save`, `delete`, `exists`, `local_path`, `public_url`). `LocalDiskStorage` writes to `backend/storage/YYYY/MM/<uuid>.pdf`. Postgres stores only `file_key`; `file_url` is derived (`/api/resources/{id}/file`) so swapping backends doesn't touch rows. A remote backend returns a `public_url` and the file endpoint redirects to it.
@@ -139,8 +151,8 @@ The top result on the first page is flagged `recommended` (shown as **✦ Recomm
 
 ### API overview
 - `POST /api/auth/signup|login`, `GET/PATCH /api/auth/me`
-- `GET /api/subjects`, `GET /api/subjects/{slug}`, `GET /api/meta`
-- `GET /api/search?q=&subject=&unit=&type=&year=&exam_type=&sort=best|stars|rating|views|newest`
+- `GET /api/subjects?branch=&year=&semester=&kind=&q=`, `GET /api/subjects/lookup?q=`, `GET /api/subjects/{slug}`, `GET /api/branches`, `GET /api/meta`
+- `GET /api/search?q=&subject=&unit=&type=&year=&exam_type=&branch=&study_year=&study_semester=&sort=best|stars|rating|views|newest`
 - `GET /api/trending`, `GET /api/exam-plan?subject=&exam=semester|mid1|mid2`
 - `POST /api/resources` (multipart upload), `GET/PATCH/DELETE /api/resources/{id}`, `GET /api/resources/{id}/file[?download=1]`
 - `POST /api/resources/{id}/view`, `PUT …/progress`, `POST|DELETE …/star`, `PUT|DELETE …/rating`, `POST|DELETE …/bookmark`, `POST …/report`

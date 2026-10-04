@@ -8,7 +8,7 @@ import { ResourceCard, ResourceCardSkeleton } from '@/components/resource/Resour
 import { buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { Badge, Input, Skeleton } from '@/components/ui/primitives'
-import { semLabel, semLong } from '@/hooks/useAcademic'
+import { semLabel, semLong, useAcademic } from '@/hooks/useAcademic'
 import { useDebounced } from '@/hooks/useData'
 import { RESOURCE_TYPES } from '@/lib/constants'
 import type { Resource, Subject } from '@/lib/types'
@@ -50,7 +50,10 @@ export default function SubjectPage() {
     return RESOURCE_TYPES.filter((t) => g[t.value]).map((t) => ({ type: t, items: g[t.value] }))
   }, [filtered])
 
+  const { academic } = useAcademic()
   if (error) return <NotFoundPage />
+  // Year/semester differ by branch (e.g. ML is III-I for CSE, III-II for CSD); show the viewer's own.
+  const mine = subject?.offerings.find((o) => o.branch_code === academic.branch)
   const activeUnit = subject?.units.find((u) => u.number === unit)
 
   return (
@@ -76,7 +79,14 @@ export default function SubjectPage() {
                   <GraduationCap /> GRIET {subject.regulation} syllabus
                 </Badge>
               )}
-              {subject.year && <Badge>{semLong(subject.year, subject.semester)}</Badge>}
+              {mine?.year ? (
+                <Badge>
+                  {semLong(mine.year, mine.semester)} · {mine.branch_code}
+                </Badge>
+              ) : (
+                subject.year && <Badge>{semLong(subject.year, subject.semester)}</Badge>
+              )}
+              {(mine ?? subject.offerings[0])?.elective && <Badge>{(mine ?? subject.offerings[0])!.elective}</Badge>}
               {subject.kind !== 'theory' && (
                 <Badge>
                   {subject.kind === 'lab' && <FlaskConical />} {subject.kind === 'lab' ? 'Lab' : 'Project'}
@@ -93,7 +103,6 @@ export default function SubjectPage() {
                   {' · '}
                   <span title={subject.offerings.map((o) => `${o.branch_name}${o.elective ? ` (${o.elective})` : ''}`).join('\n')}>
                     {subject.offerings.length > 6 ? `${subject.offerings.length} branches` : subject.offerings.map((o) => o.branch_code).join(', ')}
-                    {subject.offerings.some((o) => o.elective) ? ` · ${subject.offerings.find((o) => o.elective)!.elective}` : ''}
                   </span>
                 </>
               )}

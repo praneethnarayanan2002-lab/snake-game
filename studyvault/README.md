@@ -6,6 +6,8 @@ A community-driven academic PDF library for college students. Upload notes and p
 - **Backend:** FastAPI · SQLAlchemy 2 · Alembic · PostgreSQL 16 (full-text search + pg_trgm) · pypdf
 - **Storage:** pluggable file storage (local disk now; S3/Supabase/Cloudinary by adding a backend). PDF binaries never go into Postgres.
 
+**Live:** https://studyvault-smoky.vercel.app (Vercel + Supabase)
+
 ## Quick start
 
 Requirements: Python 3.12+, Node 20+, and either Docker or a local PostgreSQL 16.

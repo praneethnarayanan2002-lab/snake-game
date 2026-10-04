@@ -1,12 +1,13 @@
 import re
+import time
 from dataclasses import dataclass
 
 from sqlalchemy import Float, and_, case, cast, func, literal, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Resource, ResourceText, Subject, Unit, User
+from app.models import Branch, Resource, ResourceText, Subject, SubjectOffering, Unit, User
 from app.schemas import ResourceOut
-from app.services.query_parser import ParsedQuery, SubjectRef, parse_query
+from app.services.query_parser import ParsedQuery, SubjectRef, normalize, parse_query
 from app.services.ranking import Candidate, GlobalStats, bayesian_rating, score_candidates
 from app.services.resources import resource_query, to_out, viewer_states
 
@@ -18,6 +19,11 @@ SORTS = {"best", "newest", "stars", "rating", "views"}
 class Filters:
     subject_id: int | None = None
     subject_ids: list[int] | None = None
+    regulation: str | None = None
+    branch: str | None = None
+    # Academic year/semester of the course (distinct from `year`, the document's year).
+    study_year: int | None = None
+    study_semester: int | None = None
     unit_id: int | None = None
     unit_number: int | None = None
     resource_type: str | None = None
@@ -27,11 +33,41 @@ class Filters:
     exclude_ids: list[int] | None = None
 
 
-def load_subject_refs(db: Session) -> list[SubjectRef]:
-    return [
-        SubjectRef(s.id, s.slug, s.code, s.name, [a.strip() for a in s.aliases.split(",") if a.strip()])
-        for s in db.scalars(select(Subject))
-    ]
+_REF_CACHE: tuple[float, list[SubjectRef]] | None = None
+REF_TTL_SECONDS = 60
+REGULATION_ORDER = {"GR25": 3, "GR24": 2, "GR22": 1}
+
+
+def invalidate_subject_refs() -> None:
+    global _REF_CACHE
+    _REF_CACHE = None
+
+
+def load_subject_refs(db: Session, prefer_regulation: str | None = None) -> list[SubjectRef]:
+    """One ref per course *name*, covering every regulation's copy of that course."""
+    global _REF_CACHE
+    if _REF_CACHE is None or time.monotonic() - _REF_CACHE[0] > REF_TTL_SECONDS:
+        groups: dict[str, list] = {}
+        rows = db.execute(select(Subject.id, Subject.slug, Subject.code, Subject.name, Subject.aliases, Subject.regulation)).all()
+        for row in rows:
+            groups.setdefault(normalize(row.name), []).append(row)
+        refs = []
+        for rows_ in groups.values():
+            rows_.sort(key=lambda r: REGULATION_ORDER.get(r.regulation or "", 0), reverse=True)
+            aliases = list(dict.fromkeys(a.strip() for r in rows_ for a in r.aliases.split(",") if a.strip()))
+            head = rows_[0]
+            refs.append(
+                SubjectRef(head.id, head.slug, head.code, head.name, aliases, ids=[r.id for r in rows_], regulations={r.id: r.regulation for r in rows_})
+            )
+        _REF_CACHE = (time.monotonic(), refs)
+    refs = _REF_CACHE[1]
+    if not prefer_regulation:
+        return refs
+    out = []
+    for r in refs:
+        pick = next((i for i in r.ids if r.regulations.get(i) == prefer_regulation), None)
+        out.append(r if pick in (None, r.id) else SubjectRef(pick, r.slug, r.code, r.name, r.aliases, ids=r.ids, regulations=r.regulations))
+    return out
 
 
 def _terms(keywords: list[str]) -> list[str]:
@@ -66,6 +102,17 @@ def _apply_filters(stmt, f: Filters):
         stmt = stmt.where(Resource.year == f.year)
     if f.exam_type:
         stmt = stmt.where(Resource.exam_type == f.exam_type)
+    if f.regulation:
+        stmt = stmt.where(Resource.subject_id.in_(select(Subject.id).where(Subject.regulation == f.regulation)))
+    if f.branch or f.study_year or f.study_semester:
+        offered = select(SubjectOffering.subject_id).join(Branch, Branch.id == SubjectOffering.branch_id)
+        if f.branch:
+            offered = offered.where(Branch.code == f.branch)
+        if f.study_year:
+            offered = offered.where(SubjectOffering.year == f.study_year)
+        if f.study_semester:
+            offered = offered.where(SubjectOffering.semester == f.study_semester)
+        stmt = stmt.where(Resource.subject_id.in_(offered))
     if f.uploaded_by:
         stmt = stmt.where(Resource.uploaded_by == f.uploaded_by)
     if f.exclude_ids:
@@ -91,7 +138,7 @@ def search(
 ) -> SearchResult:
     filters = filters or Filters()
     sort = sort if sort in SORTS else "best"
-    parsed = parse_query(q or "", load_subject_refs(db))
+    parsed = parse_query(q or "", load_subject_refs(db, user.regulation if user else None))
     tsq_str = _tsquery_string(parsed.keywords)
 
     if tsq_str:
@@ -150,7 +197,7 @@ def search(
     if text_match is not None:
         conditions.append(text_match)
     if parsed.subject is not None:
-        conditions.append(Resource.subject_id == parsed.subject.id)
+        conditions.append(Resource.subject_id.in_(parsed.subject.ids))
     if text_match is None and parsed.subject is None and parsed.facet_count:
         facet_conds = []
         if parsed.unit_number:

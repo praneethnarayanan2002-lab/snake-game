@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 
-from app.models import Bookmark, Resource, ResourceView, Subject, User
+from app.models import Bookmark, Resource, ResourceView, Subject, SubjectOffering, User
 from app.routes.deps import DB, CurrentUser, OptionalUser
 from app.schemas import ResourceOut, SubjectBrief, UserPublic
 from app.services.resources import resource_query, serialize
@@ -93,8 +93,27 @@ def dashboard(db: DB, user: CurrentUser):
     for sid, n in db.execute(select(Resource.subject_id, func.count()).where(Resource.uploaded_by == user.id).group_by(Resource.subject_id)):
         activity[sid] = activity.get(sid, 0) + 3 * n
     subject_ids = sorted(activity, key=activity.get, reverse=True)
-    subjects = [SubjectBrief.model_validate(s) for s in db.scalars(select(Subject).where(Subject.id.in_(subject_ids)))] if subject_ids else []
-    subjects.sort(key=lambda s: subject_ids.index(s.id))
+    # The student's current-semester courses come first, then anything they've used.
+    semester_ids: list[int] = []
+    if user.branch_id and user.regulation and user.current_year:
+        offered = (
+            select(Subject.id)
+            .join(SubjectOffering, SubjectOffering.subject_id == Subject.id)
+            .where(
+                SubjectOffering.branch_id == user.branch_id,
+                Subject.regulation == user.regulation,
+                SubjectOffering.year == user.current_year,
+                SubjectOffering.elective.is_(None),
+            )
+            .order_by(Subject.kind.desc(), Subject.name)
+        )
+        if user.current_semester:
+            offered = offered.where(SubjectOffering.semester == user.current_semester)
+        semester_ids = list(db.scalars(offered))
+    ordered = list(dict.fromkeys(semester_ids + subject_ids))
+    by_id = {s.id: s for s in db.scalars(select(Subject).where(Subject.id.in_(ordered)))} if ordered else {}
+    subjects = [SubjectBrief.model_validate(by_id[i]) for i in ordered if i in by_id][:12]
+    subject_ids = ordered
 
     seen = [r["resource"].id for r in recent_items]
     recommended = search(

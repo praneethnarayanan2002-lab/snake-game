@@ -8,6 +8,7 @@ from app.routes.deps import DB, AdminUser
 from app.routes.subjects import subject_out
 from app.schemas import ReportUpdate, SubjectIn, SubjectOut, UnitIn, Uploader
 from app.services.resources import delete_resource, resource_query, serialize, to_out
+from app.services.search import invalidate_subject_refs
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -94,6 +95,7 @@ def purge_spammer(user_id: int, db: DB, admin: AdminUser):
 
 
 def _subject(db, subject_id: int) -> Subject:
+    invalidate_subject_refs()
     s = db.scalar(select(Subject).options(selectinload(Subject.units)).where(Subject.id == subject_id))
     if not s:
         raise HTTPException(404, "Subject not found")

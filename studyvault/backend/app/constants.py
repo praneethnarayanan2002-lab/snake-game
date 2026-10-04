@@ -27,3 +27,10 @@ REPORT_REASONS: dict[str, str] = {
     "inappropriate": "Inappropriate content",
     "other": "Other",
 }
+
+# GRIET B.Tech regulations currently in force (syllabus books on griet.ac.in/syllabus.php).
+REGULATIONS: dict[str, str] = {
+    "GR25": "GR25 · admitted 2025 onwards",
+    "GR24": "GR24 · admitted 2024",
+    "GR22": "GR22 · admitted 2022–2023",
+}

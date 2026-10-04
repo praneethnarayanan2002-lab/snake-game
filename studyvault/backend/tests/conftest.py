@@ -35,7 +35,11 @@ def schema():
 
 @pytest.fixture(autouse=True)
 def clean_db():
+    from app.services.search import invalidate_subject_refs
+
+    invalidate_subject_refs()
     yield
+    invalidate_subject_refs()
     with engine.begin() as conn:
         tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, or_, select
 
-from app.models import User
+from app.config import get_settings
+from app.models import Branch, User
 from app.routes.deps import DB, CurrentUser
 from app.schemas import AuthOut, LoginIn, ProfileUpdate, SignupIn, UserMe
 from app.services.security import create_access_token, hash_password, verify_password
@@ -13,9 +14,21 @@ def _auth(user: User) -> AuthOut:
     return AuthOut(access_token=create_access_token(user.id), user=UserMe.model_validate(user))
 
 
+def _branch_id(db, code: str | None) -> int | None:
+    if not code:
+        return None
+    branch = db.scalar(select(Branch).where(Branch.code == code.upper()))
+    if not branch:
+        raise HTTPException(422, "Unknown branch")
+    return branch.id
+
+
 @router.post("/signup", response_model=AuthOut, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupIn, db: DB):
     email = body.email.lower()
+    allowed = get_settings().allowed_email_domains
+    if allowed and email.rsplit("@", 1)[-1] not in allowed:
+        raise HTTPException(422, f"Use your GRIET email ({' / '.join('@' + d for d in allowed)})")
     clash = db.scalar(select(User).where(or_(User.username == body.username, func.lower(User.email) == email)))
     if clash:
         field = "username" if clash.username == body.username else "email"
@@ -24,8 +37,12 @@ def signup(body: SignupIn, db: DB):
         username=body.username,
         email=email,
         full_name=body.full_name.strip(),
-        college=body.college,
+        college="GRIET",
         password_hash=hash_password(body.password),
+        regulation=body.regulation,
+        current_year=body.current_year,
+        current_semester=body.current_semester,
+        branch_id=_branch_id(db, body.branch),
     )
     db.add(user)
     db.commit()
@@ -48,7 +65,11 @@ def me(user: CurrentUser):
 
 @router.patch("/me", response_model=UserMe)
 def update_me(body: ProfileUpdate, user: CurrentUser, db: DB):
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "branch" in data:
+        user.branch_id = _branch_id(db, data.pop("branch"))
+    for k, v in data.items():
         setattr(user, k, v)
     db.commit()
+    db.refresh(user)
     return user

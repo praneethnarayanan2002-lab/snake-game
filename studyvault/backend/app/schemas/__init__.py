@@ -13,6 +13,11 @@ class UserPublic(ORM):
     username: str
     full_name: str
     college: str | None = None
+    branch_code: str | None = None
+    branch_name: str | None = None
+    regulation: str | None = None
+    current_year: int | None = None
+    current_semester: int | None = None
     created_at: datetime
 
 
@@ -26,7 +31,10 @@ class SignupIn(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=8, max_length=128)
-    college: str | None = Field(default=None, max_length=160)
+    branch: str | None = Field(default=None, max_length=16)
+    regulation: str | None = Field(default=None, pattern=r"^GR\d{2}$")
+    current_year: int | None = Field(default=None, ge=1, le=4)
+    current_semester: int | None = Field(default=None, ge=1, le=2)
 
     @field_validator("username")
     @classmethod
@@ -47,7 +55,10 @@ class AuthOut(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=120)
-    college: str | None = Field(default=None, max_length=160)
+    branch: str | None = Field(default=None, max_length=16)
+    regulation: str | None = Field(default=None, pattern=r"^GR\d{2}$")
+    current_year: int | None = Field(default=None, ge=1, le=4)
+    current_semester: int | None = Field(default=None, ge=1, le=2)
 
 
 # ---------- subjects ----------
@@ -65,14 +76,45 @@ class SubjectBrief(ORM):
     slug: str
     code: str
     name: str
+    course_code: str | None = None
+    regulation: str | None = None
 
 
-class SubjectOut(SubjectBrief):
+class BranchOut(ORM):
+    code: str
+    name: str
+    subject_count: int = 0
+
+
+class OfferingOut(BaseModel):
+    branch_code: str
+    branch_name: str
+    year: int | None
+    semester: int | None
+    elective: str | None
+
+
+class SubjectListItem(SubjectBrief):
+    year: int | None = None
+    semester: int | None = None
+    kind: str = "theory"
+    credits: float = 0
+    ltpc: str = ""
+    elective: str | None = None
+    resource_count: int = 0
+    unit_count: int = 0
+
+
+class SubjectOut(SubjectListItem):
     description: str
     aliases: str = ""
-    resource_count: int = 0
     star_count: int = 0
     units: list[UnitOut] = []
+    outcomes: list[str] = []
+    books: list[str] = []
+    lab_tasks: str = ""
+    source_url: str = ""
+    offerings: list[OfferingOut] = []
 
 
 class SubjectIn(BaseModel):

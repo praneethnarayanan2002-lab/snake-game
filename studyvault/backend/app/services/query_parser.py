@@ -85,6 +85,13 @@ class SubjectRef:
     code: str
     name: str
     aliases: list[str]
+    # Same-named courses across regulations (GR22/GR24/GR25 "Database Management Systems").
+    ids: list[int] = field(default_factory=list)
+    regulations: dict[int, str | None] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not self.ids:
+            self.ids = [self.id]
 
 
 @dataclass
@@ -107,7 +114,7 @@ class ParsedQuery:
         return {
             "raw": self.raw,
             "keywords": self.keywords,
-            "subject": {"id": self.subject.id, "slug": self.subject.slug, "code": self.subject.code, "name": self.subject.name}
+            "subject": {"id": self.subject.id, "ids": self.subject.ids, "slug": self.subject.slug, "code": self.subject.code, "name": self.subject.name}
             if self.subject
             else None,
             "unit_number": self.unit_number,
@@ -126,13 +133,13 @@ def _cut(text: str, start: int, end: int) -> str:
 
 
 def _subject_phrases(subjects: list[SubjectRef]) -> list[tuple[str, SubjectRef]]:
-    phrases: list[tuple[str, SubjectRef]] = []
+    phrases: dict[str, SubjectRef] = {}
     for s in subjects:
-        for p in {s.slug.replace("-", " "), s.code, s.name, *s.aliases}:
+        for p in {s.slug.replace("-", " "), s.name, *s.aliases}:
             p = normalize(p)
-            if p:
-                phrases.append((p, s))
-    return sorted(phrases, key=lambda p: -len(p[0]))
+            if p and len(p) >= 2:
+                phrases.setdefault(p, s)
+    return sorted(phrases.items(), key=lambda p: -len(p[0]))
 
 
 def parse_query(raw: str, subjects: list[SubjectRef]) -> ParsedQuery:

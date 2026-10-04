@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     supabase_bucket: str = "studyvault-pdfs"
     max_upload_mb: int = 20
 
+    # e.g. ["griet.ac.in"] to only allow sign-ups with a college email; empty = anyone.
+    allowed_email_domains: list[str] = []
+
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     @field_validator("database_url")

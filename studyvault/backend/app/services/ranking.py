@@ -85,7 +85,7 @@ def _recency(created_at: datetime, now: datetime) -> float:
 def _facet_matches(c: Candidate, q: ParsedQuery) -> list[float]:
     checks: list[float] = []
     if q.subject is not None:
-        checks.append(float(c.subject_id == q.subject.id))
+        checks.append(float(c.subject_id in q.subject.ids))
     if q.unit_number is not None:
         checks.append(float(c.unit_number == q.unit_number))
     if q.resource_type is not None:
@@ -125,7 +125,7 @@ def score_candidates(
             relevance = coverage
 
         if query.subject is not None:
-            subject_hit = float(c.subject_id == query.subject.id)
+            subject_hit = float(c.subject_id in query.subject.ids)
             unit_hit = float(c.unit_number == query.unit_number) if query.unit_number is not None else subject_hit
             subject_unit = 0.5 * subject_hit + 0.5 * (unit_hit * subject_hit)
         elif query.unit_number is not None:

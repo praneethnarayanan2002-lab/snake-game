@@ -31,6 +31,10 @@ def search_resources(
     year: int | None = None,
     exam_type: str | None = None,
     uploader: int | None = None,
+    regulation: str | None = Query(None, pattern=r"^GR\d{2}$"),
+    branch: str | None = Query(None, max_length=16),
+    study_year: int | None = Query(None, ge=1, le=4),
+    study_semester: int | None = Query(None, ge=1, le=2),
     sort: str = "best",
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -43,6 +47,10 @@ def search_resources(
         year=year,
         exam_type=exam_type or None,
         uploaded_by=uploader,
+        regulation=regulation,
+        branch=branch.upper() if branch else None,
+        study_year=study_year,
+        study_semester=study_semester,
     )
     result = search(db, q.strip()[:200], filters, sort, limit, offset, user)
     return SearchOut(items=result.items, total=result.total, parsed=result.parsed.to_dict(), sort=sort, limit=limit, offset=offset)

@@ -30,6 +30,7 @@ def subject_out(db: Session, subjects: list[Subject]) -> list[SubjectOut]:
                 code=s.code,
                 name=s.name,
                 description=s.description,
+                aliases=s.aliases,
                 resource_count=count,
                 star_count=stars,
                 units=[

@@ -83,9 +83,16 @@ def exam_plan(
         pyqs += top("", Filters(subject_id=subj.id, resource_type=t), 4)
     pyqs = sorted({r.id: r for r in pyqs}.values(), key=lambda r: (r.star_count, r.average_rating), reverse=True)[:4]
 
-    banks = top("", Filters(subject_id=subj.id, resource_type="question_bank"), 4)
-    faq = top("important frequently asked questions", base, 6)
-    faq = [r for r in faq if r.id not in {p.id for p in pyqs} | {b.id for b in banks}][:3]
+    all_banks = top("", Filters(subject_id=subj.id, resource_type="question_bank"), 6)
+    banks = all_banks[:2]
+    # FAQ: remaining question banks plus unit-wise PYQs not already in step 1.
+    used = {r.id for r in pyqs} | {r.id for r in banks}
+    faq_pool = all_banks[2:] + top("", Filters(subject_id=subj.id, resource_type="pyq"), 6)
+    faq = sorted(
+        {r.id: r for r in faq_pool if r.id not in used}.values(),
+        key=lambda r: (r.star_count, r.average_rating),
+        reverse=True,
+    )[:4]
 
     if focus_unit is None or focus_unit not in scope:
         # Default to the in-scope unit with the most community activity.

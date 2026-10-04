@@ -68,6 +68,7 @@ class SubjectBrief(ORM):
 
 class SubjectOut(SubjectBrief):
     description: str
+    aliases: str = ""
     resource_count: int = 0
     star_count: int = 0
     units: list[UnitOut] = []

@@ -15,6 +15,7 @@ import {
   Upload,
   User,
   FolderUp,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -22,7 +23,8 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/primitives'
-import { useSubjects } from '@/hooks/useData'
+import { semLabel, useAcademic, useSemesterSubjects } from '@/hooks/useAcademic'
+import { AcademicSwitcher, OnboardingGate } from './AcademicSwitcher'
 import { useAuth } from '@/lib/auth'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
@@ -38,6 +40,7 @@ export function Logo({ className }: { className?: string }) {
         </svg>
       </span>
       <span className="text-[15px] font-semibold tracking-[-0.02em] text-fg">StudyVault</span>
+      <span className="rounded border border-accent/25 bg-accent-soft px-1 py-px font-mono text-[9px] font-bold tracking-wider text-accent">GRIET</span>
     </Link>
   )
 }
@@ -151,14 +154,16 @@ function UserMenu({ compact = false }: { compact?: boolean }) {
 function Sidebar() {
   const { user } = useAuth()
   const { open } = useCommandPalette()
-  const { data: subjects } = useSubjects()
+  const { data: subjects } = useSemesterSubjects()
+  const { academic } = useAcademic()
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-bg lg:flex">
       <div className="flex h-14 items-center justify-between px-4">
         <Logo />
         <ThemeToggle />
       </div>
-      <div className="px-3 pb-2">
+      <div className="space-y-2 px-3 pb-2">
+        <AcademicSwitcher />
         <button
           onClick={() => open()}
           className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] text-subtle shadow-xs transition-colors hover:border-border-strong hover:text-muted"
@@ -177,8 +182,11 @@ function Sidebar() {
         ))}
         {user?.is_admin && <NavItem to="/admin" label="Admin" icon={Shield} />}
 
-        <div className="px-2.5 pt-6 pb-2 text-2xs font-medium tracking-wider text-subtle uppercase">Subjects</div>
-        {subjects?.map((s) => (
+        <div className="px-2.5 pt-6 pb-2 text-2xs font-medium tracking-wider text-subtle uppercase">
+          This semester · {semLabel(academic.year, academic.semester)}
+        </div>
+        {subjects?.length === 0 && <p className="px-2.5 text-xs text-subtle">No courses listed for this semester yet.</p>}
+        {subjects?.filter((s) => !s.elective).slice(0, 12).map((s) => (
           <NavLink
             key={s.id}
             to={`/subjects/${s.slug}`}
@@ -189,7 +197,7 @@ function Sidebar() {
               )
             }
           >
-            <span className="w-9 shrink-0 font-mono text-[10px] font-semibold text-subtle">{s.code}</span>
+            <span className={cn('w-10 shrink-0 truncate font-mono text-[10px] font-semibold', s.kind === 'theory' ? 'text-subtle' : 'text-subtle/60')}>{s.code.replace(' LAB', '')}</span>
             <span className="truncate">{s.name}</span>
           </NavLink>
         ))}
@@ -222,6 +230,14 @@ function MobileTopBar() {
     <header className="glass sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border px-4 lg:hidden">
       <Logo />
       <div className="flex items-center gap-1">
+        <AcademicSwitcher
+          align="end"
+          trigger={
+            <Button variant="ghost" size="icon-sm" aria-label="Branch and semester">
+              <GraduationCap />
+            </Button>
+          }
+        />
         <Button variant="ghost" size="icon-sm" onClick={() => open()} aria-label="Search">
           <Search />
         </Button>
@@ -299,12 +315,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          className="pb-24 lg:pb-0"
+          className="min-h-[calc(100dvh-4rem)]"
         >
           {children}
         </motion.main>
+        <footer className="border-t border-border px-4 py-5 pb-24 text-center text-2xs text-subtle sm:px-6 lg:pb-5">
+          Unofficial student project · syllabus data from{' '}
+          <a href="https://www.griet.ac.in/syllabus.php" target="_blank" rel="noreferrer" className="underline-offset-2 hover:text-muted hover:underline">
+            griet.ac.in
+          </a>{' '}
+          · not affiliated with GRIET
+        </footer>
       </div>
       <MobileBottomNav />
+      <OnboardingGate />
     </div>
   )
 }

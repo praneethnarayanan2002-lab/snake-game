@@ -9,7 +9,8 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { FilterMenu } from '@/components/ui/filter-menu'
 import { Skeleton } from '@/components/ui/primitives'
-import { pushRecentSearch, useSubjects } from '@/hooks/useData'
+import { regulationFor, semLabel, useAcademic, useMeta, useSubject, useSubjectList } from '@/hooks/useAcademic'
+import { pushRecentSearch } from '@/hooks/useData'
 import { EXAM_TYPES, RESOURCE_TYPES, SORTS, TYPE_BY_VALUE, YEARS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { api } from '@/services/api'
@@ -20,6 +21,8 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const filters = {
+    branch: params.get('branch') ?? '',
+    sem: params.get('sem') ?? '',
     subject: params.get('subject') ?? '',
     unit: params.get('unit') ?? '',
     type: params.get('type') ?? '',
@@ -31,13 +34,26 @@ export default function SearchPage() {
   useEffect(() => {
     setInput(q)
   }, [q])
-  const { data: subjects } = useSubjects()
+  const { academic } = useAcademic()
+  const { data: meta } = useMeta()
+  const [studyYear, studySem] = filters.sem ? filters.sem.split('-').map(Number) : [undefined, undefined]
+  // Subject options follow the branch/semester filters, defaulting to the student's own semester.
+  const { data: subjects } = useSubjectList({
+    branch: filters.branch || academic.branch,
+    year: studyYear ?? (filters.branch ? undefined : academic.year),
+    semester: studySem ?? (filters.branch ? undefined : academic.semester),
+    limit: 200,
+  })
+  const { data: activeSubject } = useSubject(filters.subject || null)
 
   const { data, isLoading, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['search', q, filters, sort],
     queryFn: ({ pageParam }) =>
       api.search({
         q,
+        branch: filters.branch,
+        study_year: studyYear,
+        study_semester: studySem,
         subject: filters.subject,
         unit: filters.unit ? Number(filters.unit) : undefined,
         type: filters.type,
@@ -68,7 +84,6 @@ export default function SearchPage() {
   const first = data?.pages[0]
   const parsed = first?.parsed
   const total = first?.total ?? 0
-  const activeSubject = subjects?.find((s) => s.slug === filters.subject)
   const unitOptions = useMemo(
     () => (activeSubject ? activeSubject.units.map((u) => ({ value: String(u.number), label: `Unit ${u.number} · ${u.title}` })) : [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `Unit ${n}` }))),
     [activeSubject],
@@ -85,7 +100,7 @@ export default function SearchPage() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Search notes, papers, subjects, topics..."
+          placeholder="Search every GRIET course and paper — any year, any branch…"
           className="h-13 w-full rounded-xl border border-border-strong bg-surface pr-28 pl-12 text-[15px] shadow-sm transition-[border-color,box-shadow] outline-none placeholder:text-subtle focus:border-accent focus:ring-4 focus:ring-accent/15"
           autoFocus={!q}
         />
@@ -96,13 +111,33 @@ export default function SearchPage() {
 
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="scrollbar-none -mx-4 flex gap-1.5 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
-          <FilterMenu label="Subject" value={filters.subject} options={(subjects ?? []).map((s) => ({ value: s.slug, label: s.code }))} onChange={(v) => update({ subject: v, unit: '' })} />
+          <FilterMenu
+            label="Branch"
+            value={filters.branch}
+            options={(meta?.branches ?? []).map((b) => ({ value: b.code, label: `${b.code} · ${b.name}` }))}
+            onChange={(v) => update({ branch: v, subject: '', unit: '' })}
+          />
+          <FilterMenu
+            label="Year · Sem"
+            value={filters.sem}
+            options={[1, 2, 3, 4].flatMap((y) => [1, 2].map((sm) => ({ value: `${y}-${sm}`, label: `${semLabel(y, sm)} · ${regulationFor(y)}` })))}
+            onChange={(v) => update({ sem: v, subject: '', unit: '' })}
+          />
+          <FilterMenu
+            label="Subject"
+            value={filters.subject}
+            options={[
+              ...(activeSubject && !subjects?.some((s) => s.slug === activeSubject.slug) ? [{ value: activeSubject.slug, label: `${activeSubject.code} · ${activeSubject.name}` }] : []),
+              ...(subjects ?? []).map((s) => ({ value: s.slug, label: `${s.code} · ${s.name}` })),
+            ]}
+            onChange={(v) => update({ subject: v, unit: '' })}
+          />
           <FilterMenu label="Unit" value={filters.unit} options={unitOptions} onChange={(v) => update({ unit: v })} />
           <FilterMenu label="Type" value={filters.type} options={RESOURCE_TYPES.map((t) => ({ value: t.value, label: t.label }))} onChange={(v) => update({ type: v })} />
           <FilterMenu label="Year" value={filters.year} options={YEARS.map((y) => ({ value: String(y), label: String(y) }))} onChange={(v) => update({ year: v })} />
           <FilterMenu label="Exam" value={filters.exam_type} options={EXAM_TYPES} onChange={(v) => update({ exam_type: v })} />
           {anyFilter && (
-            <button onClick={() => update({ subject: '', unit: '', type: '', year: '', exam_type: '' })} className="shrink-0 px-2 text-[13px] text-muted hover:text-fg">
+            <button onClick={() => update({ branch: '', sem: '', subject: '', unit: '', type: '', year: '', exam_type: '' })} className="shrink-0 px-2 text-[13px] text-muted hover:text-fg">
               Reset
             </button>
           )}

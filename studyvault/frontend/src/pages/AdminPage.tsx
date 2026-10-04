@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { AnimatedNumber, EmptyState } from '@/components/ui/feedback'
 import { Badge, Card, Input, Label, PageHeader, Skeleton, Textarea } from '@/components/ui/primitives'
-import { useDebounced, useSubjects } from '@/hooks/useData'
+import { CoursePicker } from '@/components/resource/CoursePicker'
+import { useSubject } from '@/hooks/useAcademic'
+import { useDebounced } from '@/hooks/useData'
 import { REPORT_REASONS } from '@/lib/constants'
 import type { Resource, Subject, Unit } from '@/lib/types'
 import { cn, formatCount, timeAgo } from '@/lib/utils'
@@ -248,7 +250,8 @@ function ResourcesTab() {
 }
 
 function SubjectsTab() {
-  const { data: subjects } = useSubjects()
+  const [slug, setSlug] = useState<string | null>(null)
+  const { data: s } = useSubject(slug)
   const [editSubject, setEditSubject] = useState<Subject | 'new' | null>(null)
   const [editUnit, setEditUnit] = useState<{ subject: Subject; unit?: Unit } | null>(null)
   const qc = useQueryClient()
@@ -258,6 +261,7 @@ function SubjectsTab() {
       await api.admin.deleteUnit(u.id)
       toast.success('Unit removed')
       qc.invalidateQueries({ queryKey: ['subjects'] })
+      qc.invalidateQueries({ queryKey: ['subject'] })
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -265,17 +269,26 @@ function SubjectsTab() {
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-[13px] text-muted">Courses come from GRIET's syllabus books. Find one to fix its units, or add a course that isn't listed.</p>
         <Button variant="primary" size="sm" onClick={() => setEditSubject('new')}>
           <Plus /> New subject
         </Button>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        {subjects?.map((s) => (
-          <Card key={s.id} className="p-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <Card className="p-4">
+          <CoursePicker columns={1} maxHeight="520px" value={s?.id} onPick={(x) => setSlug(x.slug)} />
+        </Card>
+        {!s ? (
+          <EmptyState icon={Pencil} title="Pick a course" description="Search any course of any year on the left." />
+        ) : (
+          <Card className="h-fit p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted">{s.code}</span>
+                <span className="ml-2 font-mono text-[10px] text-subtle">
+                  {s.course_code} · {s.regulation}
+                </span>
                 <div className="mt-2 text-sm font-semibold">{s.name}</div>
                 <div className="text-xs text-muted">{s.resource_count} resources</div>
               </div>
@@ -302,7 +315,7 @@ function SubjectsTab() {
               <Plus className="size-3" /> Add unit
             </button>
           </Card>
-        ))}
+        )}
       </div>
       {editSubject && <SubjectDialog subject={editSubject === 'new' ? null : editSubject} onClose={() => setEditSubject(null)} />}
       {editUnit && <UnitDialog subject={editUnit.subject} unit={editUnit.unit} onClose={() => setEditUnit(null)} />}
@@ -321,6 +334,7 @@ function SubjectDialog({ subject, onClose }: { subject: Subject | null; onClose:
       else await api.admin.createSubject(f)
       toast.success('Subject saved')
       qc.invalidateQueries({ queryKey: ['subjects'] })
+      qc.invalidateQueries({ queryKey: ['subject'] })
       onClose()
     } catch (e) {
       toast.error((e as Error).message)
@@ -378,6 +392,7 @@ function UnitDialog({ subject, unit, onClose }: { subject: Subject; unit?: Unit;
       else await api.admin.addUnit(subject.id, f)
       toast.success('Unit saved')
       qc.invalidateQueries({ queryKey: ['subjects'] })
+      qc.invalidateQueries({ queryKey: ['subject'] })
       onClose()
     } catch (e) {
       toast.error((e as Error).message)

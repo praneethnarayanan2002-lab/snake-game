@@ -20,7 +20,8 @@ import { useNavigate } from 'react-router-dom'
 import { FileGlyph } from '@/components/resource/ResourceCard'
 import { Dialog } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/primitives'
-import { clearRecentSearches, getRecentSearches, pushRecentSearch, useDebounced, useSubjects } from '@/hooks/useData'
+import { semLabel, useAcademic, useSemesterSubjects } from '@/hooks/useAcademic'
+import { clearRecentSearches, getRecentSearches, pushRecentSearch, useDebounced } from '@/hooks/useData'
 import { RESOURCE_TYPES, TYPE_BY_VALUE } from '@/lib/constants'
 import { cn, formatCount } from '@/lib/utils'
 import { api } from '@/services/api'
@@ -93,7 +94,8 @@ function IconBox({ children }: { children: ReactNode }) {
 
 function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: string) => void; close: () => void }) {
   const navigate = useNavigate()
-  const { data: subjects = [] } = useSubjects()
+  const { academic } = useAcademic()
+  const { data: semester = [] } = useSemesterSubjects()
   const [recent, setRecent] = useState(getRecentSearches)
   const q = useDebounced(query.trim(), 140)
 
@@ -110,18 +112,22 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
     navigate(path)
   }
 
-  const lower = q.toLowerCase()
+  // Courses and units of every year and branch; the student's semester when empty.
+  const { data: lookup } = useQuery({
+    queryKey: ['lookup', q],
+    queryFn: () => api.lookup(q),
+    enabled: q.length > 1,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  })
   const subjectMatches = useMemo(
-    () => (q ? subjects.filter((s) => `${s.name} ${s.code} ${s.slug}`.toLowerCase().includes(lower)) : subjects),
-    [subjects, q, lower],
+    () =>
+      q
+        ? (q.length > 1 ? lookup?.subjects ?? [] : []).map((s) => ({ ...s, hint: [s.regulation, semLabel(s.year, s.semester)].filter(Boolean).join(' · ') }))
+        : semester.map((s) => ({ ...s, hint: `${s.resource_count} resources` })),
+    [q, lookup, semester],
   )
-  const unitMatches = useMemo(() => {
-    if (q.length < 3) return []
-    return subjects
-      .flatMap((s) => s.units.map((u) => ({ s, u })))
-      .filter(({ u }) => `${u.title} ${u.topics}`.toLowerCase().includes(lower))
-      .slice(0, 4)
-  }, [subjects, q, lower])
+  const unitMatches = q.length >= 3 ? (lookup?.units ?? []).slice(0, 4) : []
 
   const parsed = data?.parsed
   const chips = parsed
@@ -143,7 +149,7 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
           autoFocus
           value={query}
           onValueChange={setQuery}
-          placeholder="Search notes, papers, subjects, topics..."
+          placeholder="Search any GRIET course, unit, paper or topic…"
           className="h-14 w-full bg-transparent text-[15px] text-fg outline-none placeholder:text-subtle"
           onKeyDown={(e) => {
             // Enter with no highlighted result goes to the full results page.
@@ -257,14 +263,14 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
         )}
 
         {subjectMatches.length > 0 && (
-          <Command.Group heading="Subjects">
-            {subjectMatches.slice(0, q ? 3 : 5).map((s) => (
-              <Item key={s.id} value={`sub-${s.slug}`} onSelect={() => go(`/subjects/${s.slug}`)}>
+          <Command.Group heading={q ? 'Courses · all years' : `This semester · ${academic.branch} ${semLabel(academic.year, academic.semester)}`}>
+            {subjectMatches.slice(0, q ? 5 : 8).map((s) => (
+              <Item key={s.slug} value={`sub-${s.slug}`} onSelect={() => go(`/subjects/${s.slug}`)}>
                 <span className="grid h-7 w-11 shrink-0 place-items-center rounded-md border border-border bg-surface-2 font-mono text-[10px] font-semibold text-muted">
                   {s.code}
                 </span>
                 <span className="truncate">{s.name}</span>
-                <span className="ml-auto pr-5 text-xs text-subtle tabular">{s.resource_count} resources</span>
+                <span className="ml-auto shrink-0 pr-5 font-mono text-[10px] text-subtle tabular">{s.hint}</span>
               </Item>
             ))}
           </Command.Group>
@@ -272,13 +278,14 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
 
         {unitMatches.length > 0 && (
           <Command.Group heading="Units">
-            {unitMatches.map(({ s, u }) => (
-              <Item key={u.id} value={`unit-${u.id}`} onSelect={() => go(`/subjects/${s.slug}?unit=${u.number}`)}>
+            {unitMatches.map((u) => (
+              <Item key={`${u.subject_slug}-${u.number}`} value={`unit-${u.subject_slug}-${u.number}`} onSelect={() => go(`/subjects/${u.subject_slug}?unit=${u.number}`)}>
                 <IconBox>
                   <Hash />
                 </IconBox>
                 <span className="truncate">
-                  {s.code} · Unit {u.number} — {u.title}
+                  {u.subject_code} · Unit {u.number} — {u.title}
+                  {u.regulation && <span className="ml-1.5 font-mono text-[10px] text-subtle">{u.regulation}</span>}
                 </span>
               </Item>
             ))}
@@ -334,7 +341,7 @@ function PaletteBody({ query, setQuery, close }: { query: string; setQuery: (q: 
             open
           </span>
         </span>
-        <span>Try “dbms unit 3 pyq” or “os deadlock”</span>
+        <span>Try “ml unit 3 pyq” or “os deadlock”</span>
       </div>
     </Command>
   )

@@ -100,6 +100,8 @@ def meta(db: DB):
         "max_upload_mb": get_settings().max_upload_mb,
         "regulations": REGULATIONS,
         "current_regulations": CURRENT_REGULATION_BY_YEAR,
+        "course_count": db.scalar(select(func.count(Subject.id))),
+        "resource_count": db.scalar(select(func.count(Resource.id))),
         "branches": [{"code": b.code, "name": b.name} for b in db.scalars(select(Branch).order_by(Branch.id))],
     }
 

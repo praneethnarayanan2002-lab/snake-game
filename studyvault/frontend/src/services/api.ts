@@ -1,5 +1,8 @@
 import type {
   AdminReport,
+  Branch,
+  Lookup,
+  SubjectListItem,
   Dashboard,
   ExamPlan,
   Meta,
@@ -89,7 +92,27 @@ function sendXhr(
   })
 }
 
+export interface AcademicProfile {
+  branch: string
+  current_year: number
+  current_semester: number
+}
+
+export interface SubjectQuery {
+  regulation?: string
+  branch?: string
+  year?: number
+  semester?: number
+  kind?: string
+  q?: string
+  limit?: number
+}
+
 export interface SearchParams {
+  regulation?: string
+  branch?: string
+  study_year?: number
+  study_semester?: number
   q?: string
   subject?: string
   unit?: number
@@ -124,15 +147,18 @@ export interface UploadInput {
 }
 
 export const api = {
-  signup: (data: { username: string; email: string; full_name: string; password: string; college?: string }) =>
+  signup: (data: { username: string; email: string; full_name: string; password: string } & Partial<AcademicProfile>) =>
     request<{ access_token: string; user: UserMe }>('/api/auth/signup', { method: 'POST', body: json(data) }),
   login: (identifier: string, password: string) =>
     request<{ access_token: string; user: UserMe }>('/api/auth/login', { method: 'POST', body: json({ identifier, password }) }),
   me: () => request<UserMe>('/api/auth/me'),
 
   meta: () => request<Meta>('/api/meta'),
-  subjects: () => request<Subject[]>('/api/subjects'),
+  subjects: (p: SubjectQuery = {}) => request<SubjectListItem[]>(`/api/subjects${qs(p)}`),
   subject: (slug: string) => request<Subject>(`/api/subjects/${slug}`),
+  lookup: (q: string) => request<Lookup>(`/api/subjects/lookup${qs({ q })}`),
+  branches: () => request<Branch[]>('/api/branches'),
+  updateMe: (data: Partial<AcademicProfile> & { full_name?: string }) => request<UserMe>('/api/auth/me', { method: 'PATCH', body: json(data) }),
 
   search: (p: SearchParams) => request<SearchResponse>(`/api/search${qs(p)}`),
   trending: (limit = 8) => request<Resource[]>(`/api/trending?limit=${limit}`),

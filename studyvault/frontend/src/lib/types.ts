@@ -7,6 +7,11 @@ export interface UserPublic {
   username: string
   full_name: string
   college: string | null
+  branch_code: string | null
+  branch_name: string | null
+  regulation: string | null
+  current_year: number | null
+  current_semester: number | null
   created_at: string
 }
 
@@ -29,14 +34,52 @@ export interface SubjectBrief {
   slug: string
   code: string
   name: string
+  course_code: string | null
+  regulation: string | null
 }
 
-export interface Subject extends SubjectBrief {
+export type SubjectKind = 'theory' | 'lab' | 'project'
+
+export interface SubjectListItem extends SubjectBrief {
+  year: number | null
+  semester: number | null
+  kind: SubjectKind
+  credits: number
+  ltpc: string
+  elective: string | null
+  resource_count: number
+  unit_count: number
+}
+
+export interface Offering {
+  branch_code: string
+  branch_name: string
+  year: number | null
+  semester: number | null
+  elective: string | null
+}
+
+export interface Subject extends SubjectListItem {
   description: string
   aliases: string
-  resource_count: number
   star_count: number
   units: Unit[]
+  outcomes: string[]
+  books: string[]
+  lab_tasks: string
+  source_url: string
+  offerings: Offering[]
+}
+
+export interface Branch {
+  code: string
+  name: string
+  subject_count?: number
+}
+
+export interface Lookup {
+  subjects: { slug: string; code: string; name: string; course_code: string | null; regulation: string | null; year: number | null; semester: number | null; kind: SubjectKind }[]
+  units: { subject_slug: string; subject_code: string; subject_name: string; regulation: string | null; number: number; title: string }[]
 }
 
 export interface ViewerState {
@@ -139,6 +182,11 @@ export interface Meta {
   direct_upload: boolean
   formats: Record<string, { kind: FileKind; label: string; mime: string }>
   max_upload_mb: number
+  regulations: Record<string, string>
+  current_regulations: Record<string, string>
+  course_count: number
+  resource_count: number
+  branches: Branch[]
 }
 
 export interface ExamPlan {

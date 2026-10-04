@@ -8,7 +8,8 @@ import { toast } from 'sonner'
 import { Container } from '@/components/layout/AppShell'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input, Label, Textarea } from '@/components/ui/primitives'
-import { useSubjects } from '@/hooks/useData'
+import { CoursePicker } from '@/components/resource/CoursePicker'
+import { useSubject } from '@/hooks/useAcademic'
 import { EXAM_RESOURCE_TYPES, EXAM_TYPES, MAX_UPLOAD_MB, RESOURCE_TYPES, SUPPORTED_FORMATS_LABEL, TYPE_BY_VALUE, UPLOAD_ACCEPT, YEARS } from '@/lib/constants'
 import type { Resource, ResourceType } from '@/lib/types'
 import { cn, formatBytes, pad2 } from '@/lib/utils'
@@ -19,6 +20,7 @@ const STEPS = ['File', 'Subject', 'Unit', 'Type', 'Year', 'Publish'] as const
 interface Draft {
   file: File | null
   subjectId: number | null
+  subjectSlug: string | null
   unitId: number | null
   type: ResourceType | null
   year: number | null
@@ -29,30 +31,27 @@ interface Draft {
 }
 
 export default function UploadPage() {
-  const { data: subjects } = useSubjects()
   const [params] = useSearchParams()
   const qc = useQueryClient()
   const [step, setStep] = useState(0)
   const [dir, setDir] = useState(1)
-  const [draft, setDraft] = useState<Draft>({ file: null, subjectId: null, unitId: null, type: null, year: null, examType: '', title: '', description: '', tags: [] })
+  const [draft, setDraft] = useState<Draft>({ file: null, subjectId: null, subjectSlug: params.get('subject'), unitId: null, type: null, year: null, examType: '', title: '', description: '', tags: [] })
   const [titleTouched, setTitleTouched] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [progress, setProgress] = useState<number | null>(null)
   const [done, setDone] = useState<Resource | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const subject = subjects?.find((s) => s.id === draft.subjectId)
+  const { data: subject } = useSubject(draft.subjectSlug)
   const unit = subject?.units.find((u) => u.id === draft.unitId)
   const needsExam = !!draft.type && EXAM_RESOURCE_TYPES.includes(draft.type)
 
   // Deep links like /upload?subject=dbms&unit=3 from empty states.
   useEffect(() => {
-    if (!subjects || draft.subjectId) return
-    const s = subjects.find((x) => x.slug === params.get('subject'))
-    if (!s) return
-    const u = s.units.find((x) => x.number === Number(params.get('unit')))
-    setDraft((d) => ({ ...d, subjectId: s.id, unitId: u?.id ?? null }))
-  }, [subjects, params, draft.subjectId])
+    if (!subject || draft.subjectId) return
+    const u = subject.units.find((x) => x.number === Number(params.get('unit')))
+    setDraft((d) => ({ ...d, subjectId: subject.id, unitId: u?.id ?? null }))
+  }, [subject, params, draft.subjectId])
 
   const suggestedTitle = useMemo(() => {
     if (!subject || !unit || !draft.type) return ''
@@ -78,7 +77,7 @@ export default function UploadPage() {
 
   const canNext = [
     !!draft.file,
-    !!draft.subjectId,
+    !!draft.subjectId && !!subject,
     !!draft.unitId,
     !!draft.type,
     !!draft.year,
@@ -152,7 +151,7 @@ export default function UploadPage() {
   }
 
   const reset = () => {
-    setDraft({ file: null, subjectId: null, unitId: null, type: null, year: null, examType: '', title: '', description: '', tags: [] })
+    setDraft({ file: null, subjectId: null, subjectSlug: null, unitId: null, type: null, year: null, examType: '', title: '', description: '', tags: [] })
     setTitleTouched(false)
     setProgress(null)
     setDone(null)
@@ -255,14 +254,10 @@ export default function UploadPage() {
 
             {step === 1 && (
               <StepTitle title="Which subject is this for?">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {subjects?.map((s) => (
-                    <Choice key={s.id} selected={draft.subjectId === s.id} onClick={() => pick({ subjectId: s.id, unitId: s.id === draft.subjectId ? draft.unitId : null })}>
-                      <span className="w-12 font-mono text-xs font-semibold text-subtle">{s.code}</span>
-                      <span className="font-medium">{s.name}</span>
-                    </Choice>
-                  ))}
-                </div>
+                <CoursePicker
+                  value={draft.subjectId}
+                  onPick={(s) => pick({ subjectId: s.id, subjectSlug: s.slug, unitId: s.id === draft.subjectId ? draft.unitId : null })}
+                />
               </StepTitle>
             )}
 

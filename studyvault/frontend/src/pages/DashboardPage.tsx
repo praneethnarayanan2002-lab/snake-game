@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowRight, Bookmark, BookOpen, Clock, FolderUp, Library, Play, Search, Star, Target, Upload } from 'lucide-react'
+import { ArrowRight, Bookmark, BookOpen, ChevronDown, Clock, FolderUp, Library, Play, Search, Star, Target, Upload } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Container } from '@/components/layout/AppShell'
+import { AcademicSwitcher } from '@/components/layout/AcademicSwitcher'
 import { useCommandPalette } from '@/components/layout/CommandPalette'
 import { FileGlyph, ResourceCard, ResourceCardSkeleton } from '@/components/resource/ResourceCard'
+import { SubjectCard } from '@/components/resource/SubjectCard'
+import { semLong, useAcademic, useSemesterSubjects } from '@/hooks/useAcademic'
 import { buttonVariants } from '@/components/ui/button'
 import { AnimatedNumber, EmptyState } from '@/components/ui/feedback'
 import { Card, Kbd, SectionHeader, Skeleton } from '@/components/ui/primitives'
@@ -17,6 +20,9 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const { open } = useCommandPalette()
   const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard })
+  const { academic, regulation } = useAcademic()
+  const { data: semester, isLoading: loadingSemester } = useSemesterSubjects()
+  const others = data?.subjects.filter((s) => !semester?.some((x) => x.id === s.id)) ?? []
 
   return (
     <Container>
@@ -32,7 +38,7 @@ export default function DashboardPage() {
         className="group mt-6 flex h-12 w-full max-w-2xl items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 text-left shadow-sm transition-[border-color,box-shadow] hover:border-accent/40 hover:ring-4 hover:ring-accent/10"
       >
         <Search className="size-[18px] text-subtle group-hover:text-accent" />
-        <span className="flex-1 text-sm text-subtle">Search notes, papers, subjects, topics...</span>
+        <span className="flex-1 text-sm text-subtle">Search any course or paper — this year or any other…</span>
         <span className="hidden gap-0.5 sm:flex">
           <Kbd>⌘</Kbd>
           <Kbd>K</Kbd>
@@ -55,6 +61,38 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      <section className="mt-12">
+        <SectionHeader
+          title={
+            <span className="inline-flex flex-wrap items-center gap-2">
+              Your subjects
+              <AcademicSwitcher
+                align="start"
+                trigger={
+                  <button className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-surface px-2 font-mono text-xs font-medium text-muted hover:border-border-strong hover:text-fg">
+                    {academic.branch} · {semLong(academic.year, academic.semester)} <ChevronDown className="size-3" />
+                  </button>
+                }
+              />
+            </span>
+          }
+          description={`This semester's courses from GRIET's ${regulation} syllabus.`}
+          action={
+            <Link to="/exam" className="inline-flex items-center gap-1 text-[13px] text-accent hover:underline">
+              <Target className="size-3.5" /> Exam mode
+            </Link>
+          }
+        />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {loadingSemester
+            ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-xl" />)
+            : semester?.map((s, i) => <SubjectCard key={s.id} subject={s} index={i} />)}
+        </div>
+        {semester && semester.length === 0 && (
+          <EmptyState icon={BookOpen} title="No courses for this semester" description="GRIET's current syllabus has no courses listed for this branch and semester. Change it above, or browse all subjects." />
+        )}
+      </section>
+
       {/* Continue studying */}
       <section className="mt-12">
         <SectionHeader title="Continue studying" description="Pick up exactly where you left off." />
@@ -74,26 +112,23 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {data && data.subjects.length > 0 && (
+      {others.length > 0 && (
         <section className="mt-12">
-          <SectionHeader title="Your subjects" />
+          <SectionHeader title="Also studied" description="Other courses you've opened, bookmarked or uploaded to." />
           <div className="flex flex-wrap gap-2">
-            {data.subjects.map((s) => (
+            {others.map((s) => (
               <Link key={s.id} to={`/subjects/${s.slug}`} className="group inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface pr-3 pl-2 text-[13px] transition-colors hover:border-border-strong">
                 <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted">{s.code}</span>
                 {s.name}
                 <ArrowRight className="size-3 -translate-x-1 text-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
               </Link>
             ))}
-            <Link to="/exam" className="inline-flex h-9 items-center gap-2 rounded-lg border border-dashed border-accent/40 px-3 text-[13px] text-accent transition-colors hover:bg-accent-soft">
-              <Target className="size-3.5" /> Exam mode
-            </Link>
           </div>
         </section>
       )}
 
       <section className="mt-12">
-        <SectionHeader title="Recommended for you" description="Top-ranked material in the subjects you study." action={<Link to="/search" className="text-[13px] text-muted hover:text-fg">See more</Link>} />
+        <SectionHeader title="Recommended for you" description="Top-ranked material in your current-semester courses." action={<Link to="/search" className="text-[13px] text-muted hover:text-fg">See more</Link>} />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {isLoading ? Array.from({ length: 3 }).map((_, i) => <ResourceCardSkeleton key={i} />) : data?.recommended.slice(0, 6).map((r, i) => <ResourceCard key={r.id} resource={r} index={i} />)}
         </div>

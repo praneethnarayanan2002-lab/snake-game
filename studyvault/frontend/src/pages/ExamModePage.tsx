@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Container } from '@/components/layout/AppShell'
 import { Skeleton } from '@/components/ui/primitives'
-import { useSubjects } from '@/hooks/useData'
+import { semLabel, useAcademic, useSemesterSubjects } from '@/hooks/useAcademic'
 import type { Resource } from '@/lib/types'
 import { cn, pad2 } from '@/lib/utils'
 import { api } from '@/services/api'
@@ -50,7 +50,8 @@ function defaultDate() {
 export default function ExamModePage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
-  const { data: subjects } = useSubjects()
+  const { academic } = useAcademic()
+  const { data: subjects } = useSemesterSubjects('theory')
   const subject = params.get('subject') || subjects?.[0]?.slug || ''
   const exam = params.get('exam') || 'semester'
   const { data: plan, isLoading } = useQuery({
@@ -114,7 +115,13 @@ export default function ExamModePage() {
             </div>
           </div>
 
-          <div className="mt-5 flex gap-1.5 overflow-x-auto scrollbar-none">
+          <div className="mt-5 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <span className="shrink-0 pr-1 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+              {academic.branch} {semLabel(academic.year, academic.semester)}
+            </span>
+            {plan && !subjects?.some((s) => s.slug === plan.subject.slug) && (
+              <span className="h-7 shrink-0 rounded-md border border-accent/50 bg-accent/15 px-2.5 font-mono text-[11px] leading-7 font-semibold text-white">{plan.subject.code}</span>
+            )}
             {subjects?.map((s) => (
               <button
                 key={s.slug}

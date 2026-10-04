@@ -1,10 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { api } from '@/services/api'
-
-export function useSubjects() {
-  return useQuery({ queryKey: ['subjects'], queryFn: api.subjects, staleTime: 60_000 })
-}
 
 export function useDebounced<T>(value: T, delay = 180): T {
   const [v, setV] = useState(value)

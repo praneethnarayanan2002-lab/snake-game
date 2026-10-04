@@ -3,7 +3,9 @@ import { ArrowLeft, Eye, EyeOff, Star } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { AcademicPicker } from '@/components/layout/AcademicSwitcher'
 import { Logo, ThemeToggle } from '@/components/layout/AppShell'
+import type { Academic } from '@/hooks/useAcademic'
 import { Button } from '@/components/ui/button'
 import { GridBackdrop } from '@/components/ui/effects'
 import { Input, Label } from '@/components/ui/primitives'
@@ -25,7 +27,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = params.get('next') || '/dashboard'
-  const [form, setForm] = useState({ identifier: '', full_name: '', username: '', email: '', password: '', college: '' })
+  const [form, setForm] = useState({ identifier: '', full_name: '', username: '', email: '', password: '' })
+  const [academic, setAcademic] = useState<Partial<Academic>>({})
+  const academicDone = !!(academic.branch && academic.year && academic.semester)
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,12 +38,24 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!isLogin && !academicDone) {
+      setError('Pick your branch and the year · semester you are studying in.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
       const user = isLogin
         ? await login(form.identifier, form.password)
-        : await signup({ full_name: form.full_name, username: form.username, email: form.email, password: form.password, college: form.college || undefined })
+        : await signup({
+            full_name: form.full_name,
+            username: form.username,
+            email: form.email,
+            password: form.password,
+            branch: academic.branch,
+            current_year: academic.year,
+            current_semester: academic.semester,
+          })
       toast.success(isLogin ? `Welcome back, ${user.full_name.split(' ')[0]}` : 'Account created — welcome to StudyVault')
       navigate(next, { replace: true })
     } catch (err) {
@@ -63,7 +79,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             </Link>
             <h1 className="text-2xl font-semibold tracking-[-0.02em]">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
             <p className="mt-1.5 text-sm text-muted">
-              {isLogin ? 'Log in to star, rate, bookmark and upload.' : 'Free forever. Share notes, save the good ones.'}
+              {isLogin ? 'Log in to star, rate, bookmark and upload.' : 'For GRIET students. Share notes, save the good ones.'}
             </p>
 
             <form onSubmit={submit} className="mt-8 space-y-4">
@@ -78,7 +94,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
                     <Label htmlFor="full_name">Full name</Label>
                     <Input id="full_name" autoComplete="name" autoFocus required value={form.full_name} onChange={set('full_name')} placeholder="Sanjith Kumar" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div>
                     <div>
                       <Label htmlFor="username">Username</Label>
                       <Input
@@ -93,16 +109,16 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
                         placeholder="sanjith"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="college">
-                        College <span className="font-normal text-subtle">(optional)</span>
-                      </Label>
-                      <Input id="college" value={form.college} onChange={set('college')} placeholder="JNTU" />
-                    </div>
                   </div>
                   <div>
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" autoComplete="email" required value={form.email} onChange={set('email')} placeholder="you@college.edu" />
+                    <Input id="email" type="email" autoComplete="email" required value={form.email} onChange={set('email')} placeholder="you@griet.ac.in" />
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface p-3.5">
+                    <div className="mb-3 text-[13px] font-medium">
+                      Where are you at GRIET? <span className="font-normal text-subtle">— your current semester's subjects become your home</span>
+                    </div>
+                    <AcademicPicker value={academic} onChange={setAcademic} branchHeight="max-h-36" />
                   </div>
                 </>
               )}
@@ -172,9 +188,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.45 }} className="max-w-md">
             <div className="space-y-3">
               {[
-                { t: 'DBMS Unit 3 — Normalization Complete Notes', m: 'DBMS · Unit 3 · Notes · 2025', s: 128, rec: true },
-                { t: 'OS Unit 3 Previous Year Questions', m: 'OS · Unit 3 · PYQ · 2024', s: 94 },
-                { t: 'CN Semester Examination 2025', m: 'CN · Unit 5 · Semester · 2025', s: 61 },
+                { t: 'Machine Learning — Unit 3 notes', m: 'ML · GR24 · III-I · Notes', s: 128, rec: true },
+                { t: 'Automata and Compiler Design PYQs', m: 'ACD · GR24 · III-I · PYQ', s: 94 },
+                { t: 'Database Management Systems — Mid 1', m: 'DBMS · GR25 · II-II · Mid', s: 61 },
               ].map((c, i) => (
                 <motion.div
                   key={c.t}
@@ -194,10 +210,10 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
                 </motion.div>
               ))}
             </div>
-            <blockquote className="mt-10 text-lg leading-snug font-medium tracking-tight text-fg">
-              “I stopped digging through 14 WhatsApp groups the night before my DBMS mid. Everything I needed was ranked and in one place.”
-            </blockquote>
-            <p className="mt-3 text-sm text-muted">— 3rd year CSE student</p>
+            <p className="mt-10 text-lg leading-snug font-medium tracking-tight text-fg">
+              Every course in GRIET's current syllabus — GR25, GR24 and GR22 — with its units, outcomes and textbooks, and the notes and papers your seniors shared.
+            </p>
+            <p className="mt-3 text-sm text-muted">Unofficial student project · syllabus data from griet.ac.in</p>
           </motion.div>
         </div>
       </div>

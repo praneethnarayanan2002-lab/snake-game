@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowRight, Layers, Search, Sparkles, TrendingUp, Upload, Zap } from 'lucide-react'
+import { ArrowRight, ChevronDown, Layers, Search, Sparkles, TrendingUp, Upload, Zap } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Container } from '@/components/layout/AppShell'
+import { AcademicSwitcher } from '@/components/layout/AcademicSwitcher'
 import { useCommandPalette } from '@/components/layout/CommandPalette'
 import { ResourceCard, ResourceCardSkeleton } from '@/components/resource/ResourceCard'
 import { SubjectCard } from '@/components/resource/SubjectCard'
@@ -10,21 +11,22 @@ import { buttonVariants } from '@/components/ui/button'
 import { GridBackdrop, RevealText, RotatingText } from '@/components/ui/effects'
 import { AnimatedNumber } from '@/components/ui/feedback'
 import { Kbd, SectionHeader, Skeleton } from '@/components/ui/primitives'
-import { useSubjects } from '@/hooks/useData'
+import { semLong, useAcademic, useMeta, useSemesterSubjects } from '@/hooks/useAcademic'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { api } from '@/services/api'
 
-const EXAMPLES = ['DBMS normalization', 'DBMS Unit 3', 'DBMS semester paper 2025', 'Operating systems deadlock', 'Data structures previous year paper']
+const EXAMPLES = ['Machine learning decision trees', 'ML unit 3', 'Computer networks previous year paper', 'DBMS normalization', 'Operating systems deadlock']
 
 export default function HomePage() {
   const { open } = useCommandPalette()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { data: subjects, isLoading: loadingSubjects } = useSubjects()
+  const { academic, regulation } = useAcademic()
+  const { data: meta } = useMeta()
+  const { data: subjects, isLoading: loadingSubjects } = useSemesterSubjects()
+  const { data: branches } = useQuery({ queryKey: ['branches'], queryFn: api.branches, staleTime: 5 * 60_000 })
   const { data: trending, isLoading: loadingTrending } = useQuery({ queryKey: ['trending'], queryFn: () => api.trending(8) })
-
-  const totals = (subjects ?? []).reduce((acc, s) => ({ resources: acc.resources + s.resource_count, stars: acc.stars + s.star_count }), { resources: 0, stars: 0 })
 
   return (
     <>
@@ -37,13 +39,13 @@ export default function HomePage() {
                 to="/search?sort=newest"
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/80 py-1 pr-3 pl-1 text-xs text-muted shadow-xs backdrop-blur transition-colors hover:border-border-strong hover:text-fg"
               >
-                <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent">New</span>
-                Community-ranked study material
+                <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent">GRIET</span>
+                Current GR25 · GR24 · GR22 syllabus, every branch
                 <ArrowRight className="size-3" />
               </Link>
             </motion.div>
             <h1 className="mt-6 text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-fg sm:text-display">
-              <RevealText text="Your college resources." />
+              <RevealText text="GRIET's study material." />
               <br />
               <RevealText text="Organized. Ranked. Ready to study." delay={0.25} className="text-muted" />
             </h1>
@@ -53,7 +55,7 @@ export default function HomePage() {
               transition={{ delay: 0.6, duration: 0.5 }}
               className="mx-auto mt-5 max-w-xl text-[15px] leading-relaxed text-muted sm:text-base"
             >
-              Find notes, previous-year papers, assignments, mid-sem papers and semester papers — all in one place.
+              Every course you're studying this semester, with the official syllabus, notes, previous-year papers, mid and semester papers — and every other year one search away.
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7, duration: 0.45, ease: [0.22, 1, 0.36, 1] }} className="mx-auto mt-9 max-w-xl">
@@ -90,13 +92,13 @@ export default function HomePage() {
 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }} className="mt-12 flex items-center justify-center gap-8 text-sm sm:gap-12">
               {[
-                { label: 'resources', value: totals.resources },
-                { label: 'subjects', value: subjects?.length ?? 0 },
-                { label: 'stars given', value: totals.stars },
+                { label: 'GRIET courses', value: meta?.course_count ?? 0 },
+                { label: 'branches', value: branches?.length ?? 0 },
+                { label: 'documents', value: meta?.resource_count ?? 0 },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <div className="text-xl font-semibold tracking-tight text-fg sm:text-2xl">
-                    {subjects ? <AnimatedNumber value={s.value} compact /> : '—'}
+                    {meta ? <AnimatedNumber value={s.value} compact /> : '—'}
                   </div>
                   <div className="mt-0.5 text-xs text-subtle">{s.label}</div>
                 </div>
@@ -109,17 +111,29 @@ export default function HomePage() {
       <Container>
         <section>
           <SectionHeader
-            title="Popular subjects"
-            description="Every subject is organised into units, then by resource type and year."
+            title={
+              <span className="inline-flex flex-wrap items-center gap-2">
+                Your semester
+                <AcademicSwitcher
+                  align="start"
+                  trigger={
+                    <button className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-surface px-2 font-mono text-xs font-medium text-muted hover:border-border-strong hover:text-fg">
+                      {academic.branch} · {semLong(academic.year, academic.semester)} <ChevronDown className="size-3" />
+                    </button>
+                  }
+                />
+              </span>
+            }
+            description={`The courses of GRIET's ${regulation} syllabus for this semester${user ? '' : ' — pick your branch and semester to make it yours'}. Each one has its units, syllabus and shared material.`}
             action={
               <Link to="/subjects" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg">
-                All subjects <ArrowRight className="size-3.5" />
+                All years <ArrowRight className="size-3.5" />
               </Link>
             }
           />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loadingSubjects
-              ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)
+              ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-xl" />)
               : subjects?.map((s, i) => <SubjectCard key={s.id} subject={s} index={i} />)}
             {subjects && (
               <Link to="/exam" className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-dashed border-border-strong p-5 transition-colors hover:border-accent/50">
@@ -135,6 +149,25 @@ export default function HomePage() {
                 </div>
               </Link>
             )}
+          </div>
+        </section>
+
+        <section className="mt-14">
+          <SectionHeader title="Browse by branch" description="Every B.Tech programme in GRIET's current syllabus books. Open any branch and year." />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {branches?.map((b) => (
+              <Link
+                key={b.code}
+                to={`/subjects?branch=${b.code}&sem=all`}
+                className="group flex items-center gap-3 rounded-xl border border-border bg-surface px-3.5 py-3 transition-colors hover:border-border-strong"
+              >
+                <span className="grid h-8 w-12 shrink-0 place-items-center rounded-md bg-surface-2 font-mono text-[11px] font-semibold text-muted group-hover:text-accent">{b.code}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-medium">{b.name}</span>
+                  <span className="block text-2xs text-subtle tabular">{b.subject_count} courses</span>
+                </span>
+              </Link>
+            ))}
           </div>
         </section>
 
@@ -162,7 +195,7 @@ export default function HomePage() {
         <section className="mt-16 mb-4 overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="grid gap-px bg-border md:grid-cols-3">
             {[
-              { icon: Layers, title: 'Organized', body: 'Subject → Unit → Type → Year. No more scrolling through 40 WhatsApp files.' },
+              { icon: Layers, title: 'Organized', body: 'Branch → Semester → Course → Unit, straight from GRIET\'s syllabus. No more scrolling through 40 WhatsApp files.' },
               { icon: Sparkles, title: 'Ranked', body: 'Relevance, stars, ratings and views decide what floats to the top.' },
               { icon: Zap, title: 'Ready to study', body: 'Open in the in-app reader, search inside any file, pick up where you left off.' },
             ].map((f) => (

@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input, Label, Textarea } from '@/components/ui/primitives'
-import { useSubjects } from '@/hooks/useData'
+import { CoursePicker } from '@/components/resource/CoursePicker'
+import { useSubject } from '@/hooks/useAcademic'
 import { EXAM_RESOURCE_TYPES, EXAM_TYPES, REPORT_REASONS, RESOURCE_TYPES, YEARS } from '@/lib/constants'
 import type { Resource } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -62,14 +63,24 @@ export function ReportDialog({ resource, open, onOpenChange, onReported }: { res
 }
 
 export function EditResourceDialog({ resource, open, onOpenChange, onSaved }: { resource: Resource; open: boolean; onOpenChange: (o: boolean) => void; onSaved?: (r: Resource) => void }) {
-  const { data: subjects } = useSubjects()
   const qc = useQueryClient()
   const [form, setForm] = useState(() => toForm(resource))
+  const [slug, setSlug] = useState(resource.subject.slug)
+  const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
-    if (open) setForm(toForm(resource))
+    if (open) {
+      setForm(toForm(resource))
+      setSlug(resource.subject.slug)
+      setPicking(false)
+    }
   }, [open, resource])
-  const subject = subjects?.find((s) => s.id === form.subject_id)
+  const { data: subject } = useSubject(slug)
+  useEffect(() => {
+    if (subject && subject.id === form.subject_id && !subject.units.some((u) => u.id === form.unit_id)) {
+      setForm((f) => ({ ...f, unit_id: subject.units[0]?.id ?? f.unit_id }))
+    }
+  }, [subject, form.subject_id, form.unit_id])
 
   const save = async () => {
     setBusy(true)
@@ -99,24 +110,33 @@ export function EditResourceDialog({ resource, open, onOpenChange, onSaved }: { 
           <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Subject</Label>
-            <select
-              className={select}
-              value={form.subject_id}
-              onChange={(e) => {
-                const s = subjects?.find((x) => x.id === Number(e.target.value))
-                setForm({ ...form, subject_id: Number(e.target.value), unit_id: s?.units[0]?.id ?? form.unit_id })
-              }}
+          <div className="col-span-2">
+            <Label>Course</Label>
+            <button
+              type="button"
+              onClick={() => setPicking((p) => !p)}
+              className="flex h-10 w-full items-center gap-2 rounded-lg border border-border bg-surface px-2.5 text-left text-sm hover:border-border-strong"
             >
-              {subjects?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.code} — {s.name}
-                </option>
-              ))}
-            </select>
+              <span className="font-mono text-[11px] font-semibold text-subtle">{subject?.code ?? resource.subject.code}</span>
+              <span className="min-w-0 flex-1 truncate">{subject?.name ?? resource.subject.name}</span>
+              <span className="text-xs text-accent">{picking ? 'Close' : 'Change'}</span>
+            </button>
+            {picking && (
+              <div className="mt-2 rounded-lg border border-border bg-bg-elevated p-3">
+                <CoursePicker
+                  columns={1}
+                  maxHeight="240px"
+                  value={form.subject_id}
+                  onPick={(s) => {
+                    setSlug(s.slug)
+                    setForm({ ...form, subject_id: s.id, unit_id: -1 })
+                    setPicking(false)
+                  }}
+                />
+              </div>
+            )}
           </div>
-          <div>
+          <div className="col-span-2">
             <Label>Unit</Label>
             <select className={select} value={form.unit_id} onChange={(e) => setForm({ ...form, unit_id: Number(e.target.value) })}>
               {subject?.units.map((u) => (
@@ -171,7 +191,7 @@ export function EditResourceDialog({ resource, open, onOpenChange, onSaved }: { 
         <Button variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button variant="primary" loading={busy} onClick={save}>
+        <Button variant="primary" loading={busy} disabled={form.unit_id < 0} onClick={save}>
           Save changes
         </Button>
       </div>

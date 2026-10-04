@@ -19,6 +19,7 @@ export interface Unit {
   title: string
   topics: string
   resource_count: number
+  star_count: number
 }
 
 export interface SubjectBrief {

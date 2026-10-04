@@ -11,7 +11,12 @@ router = APIRouter(prefix="/api", tags=["subjects"])
 
 
 def subject_out(db: Session, subjects: list[Subject]) -> list[SubjectOut]:
-    unit_counts = dict(db.execute(select(Resource.unit_id, func.count()).group_by(Resource.unit_id)).all())
+    unit_stats = {
+        uid: (count, stars)
+        for uid, count, stars in db.execute(
+            select(Resource.unit_id, func.count(), func.coalesce(func.sum(Resource.star_count), 0)).group_by(Resource.unit_id)
+        )
+    }
     subject_stats = {
         sid: (count, stars)
         for sid, count, stars in db.execute(
@@ -34,7 +39,14 @@ def subject_out(db: Session, subjects: list[Subject]) -> list[SubjectOut]:
                 resource_count=count,
                 star_count=stars,
                 units=[
-                    UnitOut(id=u.id, number=u.number, title=u.title, topics=u.topics, resource_count=unit_counts.get(u.id, 0))
+                    UnitOut(
+                        id=u.id,
+                        number=u.number,
+                        title=u.title,
+                        topics=u.topics,
+                        resource_count=unit_stats.get(u.id, (0, 0))[0],
+                        star_count=unit_stats.get(u.id, (0, 0))[1],
+                    )
                     for u in s.units
                 ],
             )

@@ -36,7 +36,7 @@ def set_tags(db: Session, resource: Resource, names: Sequence[str]) -> None:
     if new:
         # Flush now so later set_tags calls in the same transaction can find these rows.
         db.add_all(new)
-        db.flush(new)
+        db.flush()
         existing.update({t.name: t for t in new})
     resource.tags = [existing[n] for n in names]
     resource.tags_text = " ".join(names)

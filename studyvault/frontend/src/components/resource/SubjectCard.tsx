@@ -6,7 +6,7 @@ import type { Subject } from '@/lib/types'
 import { formatCount } from '@/lib/utils'
 
 export function SubjectCard({ subject, index = 0 }: { subject: Subject; index?: number }) {
-  const max = Math.max(...subject.units.map((u) => u.resource_count), 1)
+  const max = Math.max(...subject.units.map((u) => u.star_count), 1)
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
       <Link to={`/subjects/${subject.slug}`} className="block h-full">
@@ -19,10 +19,10 @@ export function SubjectCard({ subject, index = 0 }: { subject: Subject; index?: 
           </div>
           <h3 className="mt-4 text-[15px] font-semibold tracking-tight text-fg">{subject.name}</h3>
           <p className="mt-1 line-clamp-2 text-[13px] text-muted">{subject.description}</p>
-          {/* Per-unit density sparkline */}
+          {/* Stars per unit: where the community's favourite material is */}
           <div className="mt-5 flex h-6 items-end gap-1" aria-hidden>
             {subject.units.map((u) => (
-              <div key={u.id} className="flex-1 rounded-sm bg-surface-3 transition-colors group-hover:bg-accent/40" style={{ height: `${25 + (u.resource_count / max) * 75}%` }} />
+              <div key={u.id} className="flex-1 rounded-sm bg-surface-3 transition-colors group-hover:bg-accent/40" title={`Unit ${u.number}: ${u.star_count} stars`} style={{ height: `${20 + (u.star_count / max) * 80}%` }} />
             ))}
           </div>
           <div className="mt-3 flex items-center gap-3 text-xs text-subtle tabular">

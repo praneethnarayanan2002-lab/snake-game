@@ -149,7 +149,7 @@ def search(
     conditions = []
     if text_match is not None:
         conditions.append(text_match)
-    if parsed.subject is not None and not filters.subject_id:
+    if parsed.subject is not None:
         conditions.append(Resource.subject_id == parsed.subject.id)
     if text_match is None and parsed.subject is None and parsed.facet_count:
         facet_conds = []

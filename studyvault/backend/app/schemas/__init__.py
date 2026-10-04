@@ -57,6 +57,7 @@ class UnitOut(ORM):
     title: str
     topics: str = ""
     resource_count: int = 0
+    star_count: int = 0
 
 
 class SubjectBrief(ORM):

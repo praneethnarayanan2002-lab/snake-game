@@ -99,7 +99,8 @@ def exam_plan(
         unit_scores: dict[int, int] = {}
         for r in search(db, "", base, "stars", 100, 0, None).items:
             if r.unit.number in scope:
-                unit_scores[r.unit.number] = unit_scores.get(r.unit.number, 0) + r.star_count
+                # Stars dominate; resource count breaks ties for brand-new subjects.
+                unit_scores[r.unit.number] = unit_scores.get(r.unit.number, 0) + r.star_count * 10 + 1
         focus_unit = max(unit_scores, key=unit_scores.get) if unit_scores else (scope[0] if scope else 1)
     notes = top("", Filters(subject_id=subj.id, resource_type="notes", unit_number=focus_unit), 3)
     focus = next((u for u in units if u.number == focus_unit), None)

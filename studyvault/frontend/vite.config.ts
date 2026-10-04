@@ -17,4 +17,12 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: apiTarget, changeOrigin: true } },
   },
+  // `npm run preview` serves the production build with the same API proxy; extra hosts
+  // (e.g. a tunnel domain) can be allowed via VITE_ALLOWED_HOSTS=".example.com,…".
+  preview: {
+    host: true,
+    port: 4173,
+    proxy: { '/api': { target: apiTarget, changeOrigin: true } },
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean),
+  },
 })

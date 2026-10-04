@@ -38,7 +38,7 @@ export default function SubjectPage() {
     setParams(next, { replace: true })
   }
 
-  const items = results?.items ?? []
+  const items = useMemo(() => results?.items ?? [], [results])
   const years = useMemo(() => [...new Set(items.map((r) => r.year))].sort((a, b) => b - a), [items])
   const typeCounts = useMemo(() => items.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.resource_type]: (acc[r.resource_type] ?? 0) + 1 }), {}), [items])
   const filtered = items.filter((r) => (!type || r.resource_type === type) && (!year || r.year === year))
